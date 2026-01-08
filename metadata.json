@@ -1,0 +1,7 @@
+{
+  "name": "WayPal AI - Luxury Hotel Assistant",
+  "description": "A premium AI-powered booking assistant for high-net-worth individuals seeking the best luxury hotel deals and immersive room tours.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

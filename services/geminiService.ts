@@ -2,37 +2,36 @@
 import { GoogleGenAI } from "@google/genai";
 import { HotelSearchData } from "../types";
 
+// Always use named parameter for apiKey
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const generateHotelResponse = async (
   query: string,
-  searchData?: HotelSearchData,
-  isRoomTour: boolean = false
+  searchData?: HotelSearchData
 ) => {
   const model = 'gemini-3-flash-preview';
   
   let prompt = query;
   if (searchData) {
-    prompt = `I am looking for information about ${searchData.hotelName} for ${searchData.guests} guests on ${searchData.dates}. ${query}`;
+    prompt = `我正在咨询关于 ${searchData.hotelName} 的信息，入住日期为 ${searchData.dates}，人数为 ${searchData.guests}。用户的问题是：${query}`;
   }
 
-  const systemInstruction = `你是一位名为 WayPal 的顶级奢华酒店管家，专门为高净值人群提供个性化的订房咨询。
-  你的目标是提供最高效、最专业的订房方案建议。
+  const systemInstruction = `你是一位名为 WayPal 的顶级奢华酒店私人管家，专门为高净值人群（UHNWI）提供极度专业、细致且优雅的订房咨询建议。
 
-  **回复原则：**
-  1. **排版优雅**：你的回答必须极其注重排版和换行。避免大段堆砌文字。
-  2. **结构清晰**：使用分段、小标题、或者清晰的列表来展示方案详情。
-  3. **礼貌专业**：语气要得体、奢华且具有亲和力，使用高雅的中文。
-  4. **重点突出**：关键信息（如价格、房型、礼遇）应适当加粗。
-  5. **即时搜索**：始终利用 Google Search 工具获取实时的价格趋势、会员礼遇（如 Virtuoso/FHR）以及酒店最新的活动信息。
+**核心指令：**
+1. **全中文回复**：除酒店专有名词外，所有回答内容必须使用优雅、得体的中文。
+2. **排版美学**：注重段落间距。使用加粗、列表、小标题来提升阅读效率。避免大段堆叠。
+3. **管家式口吻**：称呼用户为“宾客”或“您”，语气保持谦逊而充满自信，体现高端服务的专业度。
+4. **实时搜索**：始终调用 Google Search 获取最新的酒店动态、会员礼遇（如 Virtuoso/FHR）以及价格波动。
+5. **精准建议**：如果用户查询的是特定酒店，请针对该酒店的房型差异、景观优劣给出独到见解。
 
-  如果是 Room Tour 请求，请详细描述客房的审美设计、景观角度及核心设施。
-  如果是优惠方案，请对比不同的预定渠道（官方、代理、信用卡礼遇等）。`;
+在涉及客房展示（Room Tour）时，请像在带领客人步入房间一样，描述光影、材质和窗外的景观。
+在涉及价格对比时，请以“全网最优价值方案”为核心逻辑，而不仅是最低价，还要考虑赠送的早餐、消费抵扣等权益价值。`;
 
   try {
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
@@ -40,8 +39,8 @@ export const generateHotelResponse = async (
     });
 
     return {
-      text: response.text || "抱歉，我暂时无法获取相关细节，请稍后再试。",
-      groundingMetadata: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+      text: response.text || "非常抱歉，尊贵的宾客，我暂时无法获取该酒店的详细信息。请稍后再试。",
+      groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   } catch (error) {
     console.error("Gemini API Error:", error);

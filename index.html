@@ -11,7 +11,7 @@
     <style>
       body {
         font-family: 'Inter', 'Noto Sans SC', sans-serif;
-        background-color: #000;
+        background-color: #0b0d0f;
         margin: 0;
         padding: 0;
         overflow: hidden;
@@ -31,26 +31,39 @@
         scrollbar-width: none;
       }
       @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(10px); }
+        from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
       }
       @keyframes shimmer {
         0% { opacity: 0.3; }
-        50% { opacity: 0.8; }
+        50% { opacity: 0.6; }
         100% { opacity: 0.3; }
       }
       .animate-fade-up {
-        animation: fadeUp 0.5s ease-out forwards;
+        animation: fadeUp 0.4s ease-out forwards;
       }
       .animate-shimmer {
         animation: shimmer 2.5s infinite ease-in-out;
       }
-      /* Prevent mobile pull-to-refresh and bounce */
+      .message-content {
+        line-height: 1.65;
+        letter-spacing: -0.01em;
+      }
+      .message-content p {
+        margin-bottom: 0.85rem;
+      }
+      .message-content p:last-child {
+        margin-bottom: 0;
+      }
       body {
         overscroll-behavior-y: contain;
       }
       input, button {
         font-family: inherit;
+      }
+      /* Ensure sticky header doesn't blur everything too much */
+      .sticky-header-shadow {
+        box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
       }
     </style>
     <script type="importmap">
@@ -66,5 +79,6 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>

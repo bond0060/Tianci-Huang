@@ -1,40 +1,321 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Message, HotelSearchData } from './types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Message, HotelSearchData, RoomTourVideo } from './types';
 import { generateHotelResponse } from './services/geminiService';
 
-// High-fidelity SVG version of the provided Frog Logo
+// Helper to get local date string YYYY-MM-DD
+const getLocalDateString = (date: Date) => {
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+  return localDate.toISOString().split('T')[0];
+};
+
+// --- Video Modal Component ---
+interface VideoModalProps {
+  video: RoomTourVideo;
+  onClose: () => void;
+}
+
+const VideoPlayerModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let interval: number;
+    if (isPlaying) {
+      interval = window.setInterval(() => {
+        setProgress(prev => (prev >= 100 ? 0 : prev + 0.5));
+      }, 50);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-fade-in" onClick={onClose}>
+      <div className="relative w-full max-w-4xl aspect-video bg-black shadow-2xl overflow-hidden md:rounded-3xl border border-white/10" onClick={e => e.stopPropagation()}>
+        <div className="absolute inset-0">
+          <img src={video.coverUrl} className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${isPlaying ? 'scale-110' : 'scale-100'}`} alt="video background" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            {!isPlaying && (
+              <button onClick={() => setIsPlaying(true)} className="w-16 h-16 bg-[#12d65e] rounded-full flex items-center justify-center text-black text-xl shadow-2xl scale-110 transition-transform active:scale-95">
+                <i className="fa-solid fa-play ml-1"></i>
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8 space-y-3">
+          <div className="flex items-end justify-between">
+            <div className="space-y-1">
+              <span className="text-[9px] font-black text-[#12d65e] uppercase tracking-widest">正在播放 Room Tour</span>
+              <h3 className="text-md md:text-2xl font-bold text-white max-w-xl leading-tight">{video.title}</h3>
+              <p className="text-[11px] text-white/60 font-medium">@{video.author} · {video.likes} 赞</p>
+            </div>
+            <div className="flex gap-4 items-center">
+              <button className="text-white/80 hover:text-white transition-colors"><i className="fa-solid fa-share-nodes text-lg"></i></button>
+              <button className="text-white/80 hover:text-white transition-colors"><i className="fa-solid fa-heart text-lg"></i></button>
+            </div>
+          </div>
+          <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
+            <div className="absolute top-0 left-0 h-full bg-[#12d65e] transition-all duration-75" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="flex items-center justify-between text-[10px] font-bold text-white/40">
+            <div className="flex items-center gap-6">
+              <button onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:text-[#12d65e] transition-colors">
+                <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'} text-md`}></i>
+              </button>
+              <span>0:{(Math.floor(progress / 3)).toString().padStart(2, '0')} / 0:30</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <i className="fa-solid fa-volume-high"></i>
+              <i className="fa-solid fa-expand"></i>
+            </div>
+          </div>
+        </div>
+        <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all">
+          <i className="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- Custom Calendar Component ---
+interface CalendarProps {
+  startDate: string;
+  endDate: string;
+  onSelect: (start: string, end: string) => void;
+  onClose: () => void;
+}
+
+const Calendar: React.FC<CalendarProps> = ({ startDate, endDate, onSelect, onClose }) => {
+  const [viewDate, setViewDate] = useState(new Date(startDate));
+  const [tempStart, setTempStart] = useState<string | null>(startDate);
+  const [tempEnd, setTempEnd] = useState<string | null>(endDate);
+
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+  const monthData = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const days = daysInMonth(year, month);
+    const startOffset = firstDayOfMonth(year, month);
+    const prevMonthDays = daysInMonth(year, month - 1);
+    
+    const result = [];
+    for (let i = startOffset - 1; i >= 0; i--) {
+      result.push({ day: prevMonthDays - i, current: false, date: getLocalDateString(new Date(year, month - 1, prevMonthDays - i)) });
+    }
+    for (let i = 1; i <= days; i++) {
+      result.push({ day: i, current: true, date: getLocalDateString(new Date(year, month, i)) });
+    }
+    const remaining = 42 - result.length;
+    for (let i = 1; i <= remaining; i++) {
+      result.push({ day: i, current: false, date: getLocalDateString(new Date(year, month + 1, i)) });
+    }
+    return result;
+  }, [viewDate]);
+
+  const handleDateClick = (date: string) => {
+    if (!tempStart || (tempStart && tempEnd)) {
+      setTempStart(date);
+      setTempEnd(null);
+    } else {
+      if (new Date(date) < new Date(tempStart)) {
+        setTempStart(date);
+      } else {
+        setTempEnd(date);
+        onSelect(tempStart, date);
+      }
+    }
+  };
+
+  const isSelected = (date: string) => date === tempStart || date === tempEnd;
+  const isInRange = (date: string) => tempStart && tempEnd && new Date(date) > new Date(tempStart) && new Date(date) < new Date(tempEnd);
+  const nights = tempStart && tempEnd ? Math.ceil((new Date(tempEnd).getTime() - new Date(tempStart).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
+        <div className="p-5 bg-[#f8f9fa] border-b border-gray-100 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">入住日期</span>
+            <div className={`text-md font-bold ${tempStart ? 'text-black' : 'text-gray-300'}`}>
+              {tempStart ? new Date(tempStart).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }) : '选择日期'}
+            </div>
+          </div>
+          <div className="text-gray-200 text-xl font-light">|</div>
+          <div className="text-center">
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{nights} 晚</span>
+          </div>
+          <div className="text-gray-200 text-xl font-light">|</div>
+          <div className="space-y-1 text-right">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">离店日期</span>
+            <div className={`text-md font-bold ${tempEnd ? 'text-black' : 'text-gray-300'}`}>
+              {tempEnd ? new Date(tempEnd).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }) : '选择日期'}
+            </div>
+          </div>
+        </div>
+        <div className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-all">
+              <i className="fa-solid fa-chevron-left text-gray-400 text-sm"></i>
+            </button>
+            <span className="text-md font-black text-gray-900">{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</span>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-all">
+              <i className="fa-solid fa-chevron-right text-gray-400 text-sm"></i>
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-y-0.5">
+            {['日', '一', '二', '三', '四', '五', '六'].map(day => (
+              <div key={day} className="text-center text-[10px] font-black text-gray-400 py-2">{day}</div>
+            ))}
+            {monthData.map((d, i) => {
+              const selected = isSelected(d.date);
+              const inRange = isInRange(d.date);
+              const isStart = d.date === tempStart;
+              const isEnd = d.date === tempEnd;
+              return (
+                <button
+                  key={i}
+                  disabled={!d.current}
+                  onClick={() => handleDateClick(d.date)}
+                  className={`relative h-10 flex items-center justify-center text-[13px] font-bold transition-all
+                    ${!d.current ? 'text-gray-200' : 'text-gray-700 hover:text-blue-600'}
+                    ${inRange ? 'bg-blue-50' : ''}
+                    ${isStart && tempEnd ? 'rounded-l-full bg-blue-50' : ''}
+                    ${isEnd ? 'rounded-r-full bg-blue-50' : ''}
+                  `}
+                >
+                  <div className={`w-8 h-8 flex items-center justify-center rounded-full transition-all relative z-10
+                    ${selected ? 'bg-blue-600 text-white shadow-md' : ''}
+                  `}>
+                    {d.day}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="p-5 bg-gray-50 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm">取消</button>
+          <button 
+            disabled={!tempEnd}
+            onClick={() => tempStart && tempEnd && (onSelect(tempStart, tempEnd), onClose())} 
+            className={`flex-1 py-3 rounded-xl font-bold shadow-lg transition-all text-sm ${tempEnd ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+          >
+            确认日期
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Logo = () => (
   <svg viewBox="0 0 100 100" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
     <rect width="100" height="100" fill="#12d65e" />
     <g transform="translate(0, 2)">
-      {/* The main outline of the frog head */}
-      <path 
-        d="M21,54 
-           C21,30 44,26 49,42 
-           L51,42 
-           C56,26 79,30 79,54 
-           C79,79 50,85 21,54 Z" 
-        fill="none" 
-        stroke="black" 
-        strokeWidth="6.5" 
-        strokeLinecap="round" 
-        strokeLinejoin="round"
-      />
-      {/* Solid black circular eyes */}
+      <path d="M21,54 C21,30 44,26 49,42 L51,42 C56,26 79,30 79,54 C79,79 50,85 21,54 Z" fill="none" stroke="black" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="36" cy="46" r="7.5" fill="black" />
       <circle cx="64" cy="46" r="7.5" fill="black" />
-      {/* Cheerful wide smile */}
-      <path 
-        d="M32,64 Q50,77 68,64" 
-        fill="none" 
-        stroke="black" 
-        strokeWidth="6" 
-        strokeLinecap="round" 
-      />
+      <path d="M32,64 Q50,77 68,64" fill="none" stroke="black" strokeWidth="6" strokeLinecap="round" />
     </g>
   </svg>
 );
+
+const VideoTourList: React.FC<{ videos: RoomTourVideo[]; onPlay: (video: RoomTourVideo) => void }> = ({ videos, onPlay }) => {
+  return (
+    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+      {videos.map((video) => (
+        <div 
+          key={video.id} 
+          onClick={() => onPlay(video)}
+          className="group relative flex flex-col bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:bg-white/10 transition-all hover:scale-[1.02] cursor-pointer"
+        >
+          <div className="aspect-[16/9] md:aspect-[3/4] overflow-hidden relative">
+            <img src={video.coverUrl} alt={video.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-[#12d65e]">
+              <i className="fa-solid fa-heart mr-1"></i> {video.likes}
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="w-10 h-10 bg-[#12d65e] rounded-full flex items-center justify-center text-black">
+                <i className="fa-solid fa-play ml-0.5 text-sm"></i>
+              </div>
+            </div>
+          </div>
+          <div className="p-2.5 space-y-0.5">
+            <h4 className="text-[11px] font-bold text-white line-clamp-2 leading-snug">{video.title}</h4>
+            <p className="text-[9px] text-white/50 font-medium">@{video.author}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ComparisonTable: React.FC<{ data: any; onBook: (row: any) => void }> = ({ data, onBook }) => {
+  const rows = data.table_rows || [];
+  const translateCancellation = (text: string) => {
+    if (!text) return '详情咨询';
+    if (text === 'Free Cancellation') return '免费取消';
+    if (text === 'Non-refundable') return '不可退款';
+    return text;
+  };
+
+  return (
+    <div className="mt-3 w-full overflow-x-auto rounded-xl border border-white/10 bg-black/20 backdrop-blur-md scroll-smooth no-scrollbar">
+      <table className="w-full text-left text-[11px] md:text-[13px] min-w-[550px] md:min-w-full border-collapse">
+        <thead className="bg-white/5 text-white/40 uppercase font-black tracking-widest text-[9px]">
+          <tr>
+            <th className="px-3 py-3">预订平台</th>
+            <th className="px-3 py-3">单晚均价</th>
+            <th className="px-3 py-3">总计费用</th>
+            <th className="px-3 py-3">取消政策</th>
+            <th className="px-3 py-3 text-right">操作</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {rows.map((row: any, idx: number) => (
+            <tr key={idx} className="hover:bg-white/5 transition-colors group">
+              <td className="px-3 py-4 font-bold text-[#12d65e]">{row.platform}</td>
+              <td className="px-3 py-4 text-white font-medium">¥{row.before_tax_price?.toLocaleString()}</td>
+              <td className="px-3 py-4 font-black text-white">¥{row.total_price?.toLocaleString()}</td>
+              <td className="px-3 py-4">
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${row.cancellation_main === 'Free Cancellation' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                  {translateCancellation(row.cancellation_main)}
+                </span>
+              </td>
+              <td className="px-3 py-4 text-right">
+                <button 
+                  onClick={() => onBook(row)}
+                  className="bg-[#12d65e] text-black text-[10px] md:text-[11px] font-black px-3 py-1.5 rounded-full shadow-md shadow-[#12d65e]/20 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
+                >
+                  预订
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 0 && rows[0].perks && (
+        <div className="p-3 bg-white/5 border-t border-white/5">
+          <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1.5">尊享礼遇包含</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(rows[0].perks).map(([key, value]: [string, any], i: number) => (
+              <span key={i} className="bg-[#12d65e]/10 text-[#12d65e] text-[10px] font-bold px-2 py-0.5 rounded-lg" title={String(value)}>
+                <i className="fa-solid fa-star text-[8px] mr-1"></i>
+                {key}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,483 +326,330 @@ const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<RoomTourVideo | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Search state
   const [hotelName, setHotelName] = useState('');
-  const [dates, setDates] = useState('09/01 - 12/01 (3晚)');
+  const [startDate, setStartDate] = useState(getLocalDateString(new Date()));
+  const [endDate, setEndDate] = useState(getLocalDateString(new Date(Date.now() + 86400000)));
   const [guests, setGuests] = useState('2成人');
-
-  // Mock history data
-  const [historyItems] = useState([
-    "奢华酒店比价与预订建议",
-    "上海文华东方酒店价格查询",
-    "WayPal 定位分析与融合建议",
-    "曼谷嘉佩乐房型深度对比",
-    "三亚柏悦酒店亲子套房预定",
-    "京都安缦下午茶预约咨询",
-    "关于酒店权益 FHR 的详细解释"
-  ]);
+  const [historyItems] = useState<string[]>([]);
 
   const bgUrl = "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&q=80&w=1600";
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const scrollToBottom = (smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
     }
-  }, [messages, isLoading, isStarted]);
+  };
+
+  const scrollToTop = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Reset scroll to top when consultation starts to show first message from its beginning
+  useEffect(() => {
+    if (isStarted && messages.length > 0) {
+      scrollToTop();
+    }
+  }, [isStarted]);
 
   useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(null), 3000);
+    if (messages.length > 1 || isLoading) {
+      const timeout = setTimeout(() => scrollToBottom(), 150);
+      return () => clearTimeout(timeout);
+    }
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (errorMessage || successMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null);
+        setSuccessMessage(null);
+      }, 3500);
       return () => clearTimeout(timer);
     }
-  }, [errorMessage]);
+  }, [errorMessage, successMessage]);
 
-  const handleStartConsultation = (initialQuery?: string) => {
-    if (!hotelName.trim()) {
-      setErrorMessage("请先告诉我你想问的酒店名称");
-      return;
-    }
-    setIsStarted(true);
-    setIsEditingHeader(false);
-    
-    const welcomeMsg: Message = {
-      id: 'welcome',
-      role: 'assistant',
-      content: `您好！我是您的 WayPal 奢华酒店订房管家。\n\n我已经为您锁定了 **${hotelName}** 的相关信息：\n📅 **${dates}**\n👥 **${guests}**\n\n您可以点击下方的快捷指令开始探索，或者直接告诉我您的特殊需求（如：景观要求、特定权益等）。`,
-      timestamp: Date.now()
-    };
-    
-    if (initialQuery) {
-      setMessages([welcomeMsg]);
-      handleSend(initialQuery);
+  const getFormattedDatesDisplay = () => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const fmt = (d: Date) => `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+    return `${fmt(start)} - ${fmt(end)} (${nights > 0 ? nights : 1}晚)`;
+  };
+
+  const translateSummary = (text: string) => {
+    if (!text) return "";
+    if (text.includes("Result generated from cached offers")) return "根据系统缓存，为您匹配到当前最优参考方案。 ✅";
+    return text;
+  };
+
+  const handleBook = (row: any) => {
+    setSuccessMessage(`正在为您连接 ${row.platform} 专属通道... 礼遇已锁定。`);
+  };
+
+  const generateComparisonText = (json: any, queryName: string) => {
+    const { hotel_name, checkin_date, checkout_date, nights, summary_text } = json;
+    let result = "";
+    if (hotel_name && hotel_name !== queryName) {
+      result += `管家注意到您关注的是 **${queryName}**，但目前实时数据正在更新中。\n\n为了不耽误您的行程规划，我先展示了同级别的 **${hotel_name}** 作为参考。如有需要，我可以为您手动发起深度询价：\n\n`;
     } else {
-      setMessages([welcomeMsg]);
+      result += `已为您备妥 **${hotel_name}** 的全平台比价详情，供您审阅：\n\n`;
     }
+    result += `📅 **入住周期**: ${checkin_date} 至 ${checkout_date} (${nights}晚)\n`;
+    result += `👥 **入住人数**: ${json.guests}人\n`;
+    if (summary_text) result += `\n📝 **管家提示**: ${translateSummary(summary_text)}`;
+    return result;
   };
 
-  const handleNewConsultation = () => {
-    setIsStarted(false);
-    setMessages([]);
-    setHotelName('');
-    setIsHistoryOpen(false);
-  };
-
-  const handleSend = async (forcedQuery?: string) => {
-    const queryText = forcedQuery || inputValue;
-    if (!queryText.trim()) return;
-    
-    if (!isStarted) {
-      if (!hotelName.trim()) {
-        setErrorMessage("请先告诉我你想问的酒店名称");
-        return;
-      }
-      handleStartConsultation(queryText);
-      setInputValue('');
-      return;
-    }
-
-    const currentSearchData: HotelSearchData = {
-      hotelName,
-      dates,
-      guests
-    };
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: queryText,
-      timestamp: Date.now(),
-      hotelInfo: currentSearchData
-    };
-
+  const handlePriceComparison = async () => {
+    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: "请帮我查询全平台的实时价格对比。", timestamp: Date.now() };
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
+    const currentQueryName = hotelName;
+    const adultsMatch = guests.match(/(\d+)/);
+    const adults = adultsMatch ? parseInt(adultsMatch[1]) : 2;
+    const payload = {
+      user_id: "test_user_001",
+      params: { destination: currentQueryName.includes("上海") ? "上海" : "未知", hotel_name: currentQueryName, check_in: startDate, check_out: endDate, room_count: 1, adults, children: 0, additional_notes: "无其他要求" },
+      channel: "web"
+    };
     setIsLoading(true);
-
     try {
-      const response = await generateHotelResponse(queryText, currentSearchData);
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.text,
-        timestamp: Date.now()
-      };
+      const response = await fetch('https://waypal-agent-backend-266509309806.asia-east1.run.app/agent/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      const aiMessage: Message = { id: (Date.now() + 1).toString(), role: 'assistant', type: 'comparison', content: generateComparisonText(data.reply_json, currentQueryName), comparisonData: data.reply_json, timestamp: Date.now() };
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
-      console.error(error);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "管家繁忙，请重试或咨询其他问题。", timestamp: Date.now() }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const quickActions = [
-    { 
-      label: "全平台比价", 
-      icon: <i className="fa-solid fa-magnifying-glass-dollar"></i>,
-      query: "请帮我查询全平台的实时价格对比。请涵盖官方渠道、主要OTA平台（如携程、Booking）以及高端旅行社礼遇（如FHR、Virtuoso等），并给出最划算的预定建议。" 
-    },
-    { 
-      label: "Room Tour", 
-      icon: <i className="fa-solid fa-video"></i>,
-      query: "请带我进行一次该酒店的 Room Tour。请详细描述最顶级房型的设计美学、窗外景观、以及那些普通酒店没有的奢华细节设施。请以第一人称视角描述，就像我正站在这间房里一样。" 
-    },
-    { 
-      label: "价格趋势", 
-      icon: <i className="fa-solid fa-chart-line"></i>,
-      query: "请分析该酒店在接下来的价格趋势。哪段时间入住最划算？有没有明显的淡旺季价格波动？" 
+  const handleRoomTour = async () => {
+    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: `请查找 ${hotelName} 的 Room Tour 视频。`, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    setTimeout(() => {
+      const mockVideos: RoomTourVideo[] = [
+        { id: 'xhs-1', title: `顶级视野！${hotelName} 景观套房深度测评...`, author: '奢华酒店控Lisa', likes: '1.2k', coverUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=600', videoUrl: '' },
+        { id: 'xhs-2', title: `总统套房 Room Tour 全记录`, author: '酒店试睡员阿强', likes: '856', coverUrl: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&q=80&w=600', videoUrl: '' },
+        { id: 'xhs-3', title: `${hotelName} 必住理由：开箱最美下午茶`, author: 'Vicky在旅行', likes: '643', coverUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=600', videoUrl: '' }
+      ];
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', type: 'room-tour', content: `尊贵的宾客，已为您精选了 **${hotelName}** 最具人气的三段 Room Tour 视频预览：`, roomTourVideos: mockVideos, timestamp: Date.now() }]);
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const handleStartConsultation = (initialQuery?: string, isComparison?: boolean) => {
+    if (!hotelName.trim()) {
+      setErrorMessage("请输入感兴趣的酒店名称");
+      return;
     }
+    setIsStarted(true);
+    setIsEditingHeader(false);
+    const welcomeMsg: Message = {
+      id: 'welcome',
+      role: 'assistant',
+      content: `尊贵的宾客，午安。我是您的 WayPal 奢华酒店私人管家。\n\n已锁定 **${hotelName}** 咨询通道：\n\n📅 **预计行程**: ${getFormattedDatesDisplay()}\n👥 **同行人数**: ${guests}\n\n您可以点击快捷指令获取比价、探索实景，或直接输入个性化需求。`,
+      timestamp: Date.now()
+    };
+    setMessages([welcomeMsg]);
+    if (isComparison) handlePriceComparison();
+    else if (initialQuery) handleSend(initialQuery);
+  };
+
+  const handleSend = async (forcedQuery?: string) => {
+    const queryText = forcedQuery || inputValue;
+    if (!queryText.trim()) return;
+    if (queryText.includes("全平台比价")) { handlePriceComparison(); setInputValue(''); return; }
+    if (queryText.includes("Room Tour")) { handleRoomTour(); setInputValue(''); return; }
+    if (!isStarted) { handleStartConsultation(queryText); setInputValue(''); return; }
+
+    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: queryText, timestamp: Date.now(), hotelInfo: { hotelName, dates: getFormattedDatesDisplay(), guests } };
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setIsLoading(true);
+    try {
+      const response = await generateHotelResponse(queryText, { hotelName, dates: getFormattedDatesDisplay(), guests });
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: response.text, groundingChunks: response.groundingChunks, timestamp: Date.now() }]);
+    } catch (error) { console.error(error); }
+    finally { setIsLoading(false); }
+  };
+
+  const quickActions = [
+    { label: "全网比价", icon: <i className="fa-solid fa-magnifying-glass-dollar"></i>, isSpecial: true },
+    { label: "Room Tour", icon: <i className="fa-solid fa-video"></i>, query: "请查找该酒店的 Room Tour。" },
+    { label: "价格趋势", icon: <i className="fa-solid fa-chart-line"></i>, query: "请分析价格趋势。" }
   ];
 
   return (
-    <div className="relative h-[100dvh] w-full flex flex-col items-center overflow-hidden text-white font-['Noto_Sans_SC'] bg-black">
-      {/* Background with responsive coverage */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 scale-105"
-        style={{ 
-          backgroundImage: `url(${bgUrl})`,
-          filter: isStarted ? 'blur(20px) brightness(0.2)' : 'blur(8px) brightness(0.3)'
-        }}
-      />
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+    <div className="relative h-[100dvh] w-full flex flex-col items-center overflow-hidden text-white bg-[#0b0d0f]">
+      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 scale-105" style={{ 
+        backgroundImage: `url(${bgUrl})`, 
+        filter: isStarted ? 'blur(25px) brightness(0.3)' : 'blur(6px) brightness(0.6)' 
+      }} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+      
+      {isCalendarOpen && <Calendar startDate={startDate} endDate={endDate} onSelect={(s, e) => { setStartDate(s); setEndDate(e); }} onClose={() => setIsCalendarOpen(false)} />}
+      {selectedVideo && <VideoPlayerModal video={selectedVideo} onClose={() => setSelectedVideo(null)} />}
 
-      {/* History Sidebar */}
-      <div 
-        className={`fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isHistoryOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setIsHistoryOpen(false)}
-      />
-      <aside 
-        className={`fixed top-0 left-0 bottom-0 z-[70] w-[85%] max-w-[360px] bg-[#f8f9fa] text-black transition-transform duration-500 ease-in-out shadow-2xl flex flex-col ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
-        <div className="p-6 space-y-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
-                <Logo />
-              </div>
-              <span className="text-xl font-bold tracking-tight">WayPal.ai</span>
-            </div>
-            <button onClick={() => setIsHistoryOpen(false)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 rounded-full transition-all">
-              <i className="fa-solid fa-xmark text-[20px]"></i>
-            </button>
-          </div>
-          <div className="relative group">
-            <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#12d65e] transition-colors"></i>
-            <input type="text" placeholder="搜索对话记录..." className="w-full bg-white rounded-2xl py-3.5 pl-11 pr-4 outline-none text-[14px] font-medium border border-gray-200 focus:border-[#12d65e] transition-all" />
-          </div>
-          <button onClick={handleNewConsultation} className="w-full flex items-center justify-between p-4 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-600 group-hover:bg-[#12d65e]/10 transition-all overflow-hidden">
-                <Logo />
-              </div>
-              <span className="text-[16px] font-bold text-gray-800">发起新咨询</span>
-            </div>
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-2 space-y-2 no-scrollbar">
-          <p className="px-2 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em]">最近对话</p>
-          {historyItems.map((item, index) => (
-            <button key={index} className="w-full text-left px-4 py-4 rounded-xl text-[14px] font-medium text-gray-600 hover:bg-gray-100 transition-all truncate border border-transparent" onClick={() => setIsHistoryOpen(false)}>
-              {item}
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      {/* Profile Modal - UPDATED HIGH-FIDELITY DESIGN */}
-      <div 
-        className={`fixed inset-0 z-[80] bg-black/60 backdrop-blur-md transition-opacity duration-300 flex items-center justify-center p-0 md:p-4 ${isLoginOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setIsLoginOpen(false)}
-      >
-        <div 
-          className={`w-full max-w-[560px] h-full md:h-[90vh] bg-[#f0f4f9] rounded-none md:rounded-[3rem] overflow-hidden shadow-2xl transform transition-all duration-500 ease-out flex flex-col ${isLoginOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-10'}`}
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-6 md:p-8 pb-4 flex justify-between items-start bg-[#f0f4f9] z-10">
-             <div className="flex flex-col">
-               <span className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em] mb-1">Account</span>
-               <span className="text-[14px] md:text-[16px] text-gray-800 font-bold">bond0060@gmail.com</span>
-             </div>
-             <button onClick={() => setIsLoginOpen(false)} className="bg-[#e2e8f0] text-gray-800 text-[13px] font-bold px-5 py-2 hover:bg-gray-300 rounded-xl shadow-sm transition-all">完成</button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto no-scrollbar p-6 md:p-8 space-y-10">
-            {/* Centered Profile Section */}
-            <div className="flex flex-col items-center text-center space-y-4 pt-2">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-[2rem] overflow-hidden border-[4px] border-white shadow-2xl">
-                <Logo />
-              </div>
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Tianci，下午好！</h2>
-            </div>
-
-            {/* Stay Stats Section - MATCHING SCREENSHOT */}
-            <div className="bg-white rounded-[3rem] p-6 md:p-8 shadow-2xl space-y-6 relative overflow-hidden group border border-white">
-              <div className="flex justify-between items-center px-1">
-                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.3em]">Stay Stats</h3>
-                <div className="flex gap-2">
-                  <button className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-all"><i className="fa-solid fa-ellipsis"></i></button>
-                  <button className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-all"><i className="fa-solid fa-expand text-[13px]"></i></button>
-                </div>
-              </div>
-              
-              {/* Map Illustration Area */}
-              <div className="w-full aspect-[16/10] bg-[#f8f9fb] rounded-[2.5rem] relative overflow-hidden border border-gray-100/50">
-                <div className="absolute inset-0 p-8 opacity-80">
-                  <svg width="100%" height="100%" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M100,100 C150,80 250,90 300,150 C320,180 300,250 250,300 C200,320 150,350 100,340 Z" fill="#E5E7EB" />
-                    <path d="M450,80 C550,60 600,100 620,150 C630,200 600,250 550,280 C500,300 450,320 450,280 Z" fill="#E5E7EB" />
-                    <path d="M600,180 C700,160 850,150 900,250 C920,300 850,400 750,420 C650,440 600,350 600,250 Z" fill="#E5E7EB" />
-                    {[
-                      {x: 180, y: 150}, {x: 230, y: 190}, {x: 210, y: 220}, {x: 270, y: 180},
-                      {x: 480, y: 120}, {x: 520, y: 140}, {x: 500, y: 180}, {x: 470, y: 220},
-                      {x: 750, y: 250}, {x: 780, y: 280}, {x: 820, y: 260}, {x: 730, y: 320},
-                      {x: 500, y: 350}, {x: 780, y: 430}
-                    ].map((p, i) => (
-                      <circle key={i} cx={p.x} cy={p.y} r="8" fill="#007AFF" stroke="white" strokeWidth="2" />
-                    ))}
-                  </svg>
-                </div>
-                <button className="absolute top-4 right-4 w-10 h-10 bg-white/95 backdrop-blur rounded-xl shadow-lg flex items-center justify-center text-gray-800 hover:scale-110 transition-all">
-                  <i className="fa-solid fa-arrow-up-from-bracket text-[16px]"></i>
-                </button>
-              </div>
-
-              {/* Stats Labels */}
-              <div className="flex items-center justify-between px-3 pt-2">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    <i className="fa-solid fa-hotel text-blue-500"></i> Hotels
-                  </div>
-                  <span className="text-[38px] font-black text-gray-900 tracking-tighter">41</span>
-                </div>
-                <div className="flex flex-col gap-1 pr-12">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    <i className="fa-solid fa-earth-americas text-blue-500"></i> Countries
-                  </div>
-                  <span className="text-[38px] font-black text-gray-900 tracking-tighter">19</span>
-                </div>
-              </div>
-
-              {/* Flags Strip */}
-              <div className="flex items-center gap-2.5 pt-2 flex-wrap px-1">
-                {['🇨🇳', '🇨🇦', '🇭🇰', '🇲🇴', '🇹🇭', '🇯🇵', '🇸🇬', '🇫🇷', '🇮🇹', '🇬🇧', '🇺🇸'].map((flag, i) => (
-                  <div key={i} className="text-[26px] hover:scale-125 transition-transform cursor-pointer drop-shadow-sm">{flag}</div>
-                ))}
-                <button className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2.5 rounded-xl uppercase tracking-widest ml-auto hover:bg-blue-100 transition-colors">
-                  +9 More
-                </button>
-              </div>
-            </div>
-
-            {/* Memberships & Billing */}
-            <div className="space-y-6">
-              <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.3em] px-2">Memberships & Billing</h3>
-              <div className="bg-white rounded-[3rem] overflow-hidden shadow-xl border border-white divide-y divide-gray-50">
-                {[
-                  { brand: "Marriott Bonvoy", level: "Titanium Elite", icon: "M" },
-                  { brand: "Hilton Honors", level: "Diamond", icon: "H" },
-                  { brand: "IHG Rewards", level: "Diamond Select", icon: "I" }
-                ].map((item, idx) => (
-                  <button key={idx} className="w-full flex items-center justify-between p-6 hover:bg-gray-50 transition-all text-left">
-                    <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center font-black text-gray-300 border border-gray-100 text-[20px]">{item.icon}</div>
-                      <div className="flex flex-col">
-                        <span className="text-[16px] font-bold text-gray-900">{item.brand}</span>
-                        <span className="text-[12px] font-bold text-blue-700 uppercase tracking-tight">{item.level}</span>
-                      </div>
-                    </div>
-                    <i className="fa-solid fa-chevron-right text-[12px] text-gray-300"></i>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button className="w-full bg-red-50 text-red-600 font-bold py-6 rounded-[3rem] hover:bg-red-100 transition-all shadow-sm">退出当前账号</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Header */}
-      <header className="relative z-20 w-full max-w-7xl flex items-center justify-between px-5 md:px-8 py-6 md:py-14">
-        <button onClick={() => setIsHistoryOpen(true)} className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white rounded-xl transition-all">
-          <i className="fa-solid fa-bars text-[20px]"></i>
-        </button>
-        <div className="absolute left-1/2 -translate-x-1/2 text-center">
-          <span className="text-xl md:text-2xl font-black tracking-[-0.04em] text-white">
-            WayPal<span className="text-[#00df81]">.ai</span>
-          </span>
-        </div>
-        <button onClick={() => setIsLoginOpen(true)} className="w-9 h-9 md:w-10 md:h-10 rounded-xl overflow-hidden shadow-2xl border-[2px] border-white/20 transition-all">
-          <Logo />
-        </button>
+      <header className="relative z-50 w-full max-w-7xl flex items-center justify-between px-4 md:px-8 py-4 md:py-10 shrink-0">
+        <button onClick={() => setIsHistoryOpen(true)} className="w-9 h-9 flex items-center justify-center text-white/80 hover:text-white rounded-xl transition-all"><i className="fa-solid fa-bars text-lg"></i></button>
+        <div className="absolute left-1/2 -translate-x-1/2 text-center"><span className="text-lg md:text-2xl font-black tracking-tighter text-white">WayPal<span className="text-[#00df81]">.ai</span></span></div>
+        <button onClick={() => setIsLoginOpen(true)} className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden border-[1.5px] border-white/20 transition-all"><Logo /></button>
       </header>
 
-      {/* Main Content Area */}
-      <main className="relative z-10 w-full max-w-4xl flex-1 flex flex-col px-4 md:px-10 overflow-hidden">
+      <main className="relative z-10 w-full max-w-4xl flex-1 flex flex-col px-3 md:px-10 overflow-hidden">
         {!isStarted ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-6 animate-fade-up">
-            <div className="text-center space-y-3 mb-10 md:mb-16">
-              <h1 className="text-3xl md:text-6xl font-black leading-relaxed md:leading-[1.6] tracking-tighter text-white drop-shadow-2xl">
-                你好，WayPal是<br/>
-                <span className="text-[#00df81]">奢华酒店订房助手</span>
-              </h1>
-            </div>
-
-            <div className="w-full max-w-xl space-y-6 flex flex-col items-center">
-              {/* Home Quick Actions */}
-              <div className="grid grid-cols-3 gap-2 md:gap-4 w-full animate-fade-up">
+          <div className="flex-1 flex flex-col items-center justify-center py-4 animate-fade-up">
+            <h1 className="text-2xl md:text-5xl font-black leading-tight tracking-tighter text-white drop-shadow-2xl text-center mb-8">
+              午安，WayPal是<br/><span className="text-[#00df81]">奢华酒店私人管家</span>
+            </h1>
+            <div className="w-full max-w-lg space-y-4">
+              <div className="grid grid-cols-3 gap-2 w-full">
                  {quickActions.map((action, idx) => (
-                   <button 
-                     key={idx}
-                     onClick={() => handleStartConsultation(action.query)}
-                     className="flex flex-col items-center gap-2 bg-white/5 backdrop-blur-2xl border border-white/10 p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] hover:bg-white/15 transition-all group"
-                   >
-                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-[#00df81]/10 flex items-center justify-center text-[#00df81] text-lg md:text-xl group-hover:bg-[#00df81] group-hover:text-black transition-all">
-                        {action.icon}
-                     </div>
-                     <span className="text-[10px] md:text-[14px] font-bold text-white transition-colors">{action.label}</span>
+                   <button key={idx} onClick={() => action.isSpecial ? handleStartConsultation(undefined, true) : (action.label === "Room Tour" ? handleRoomTour() : handleSend(action.query))} className="flex flex-col items-center gap-1.5 bg-white/5 backdrop-blur-3xl border border-white/10 p-3.5 rounded-2xl hover:bg-white/10 transition-all group">
+                     <div className="w-9 h-9 rounded-xl bg-[#00df81]/10 flex items-center justify-center text-[#00df81] text-md group-hover:bg-[#00df81] group-hover:text-black transition-all">{action.icon}</div>
+                     <span className="text-[10px] md:text-[12px] font-bold text-white/90">{action.label}</span>
                    </button>
                  ))}
               </div>
-
-              {/* Main Search Box */}
-              <div className="w-full bg-white/95 rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl border border-white transition-all group mt-2">
-                <div className="flex items-center gap-4 md:gap-6 border-b-2 border-gray-50 pb-6 md:pb-8 mb-6 md:mb-8">
-                  <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-[#00df81]/10 flex items-center justify-center shrink-0">
-                      <i className="fa-solid fa-hotel text-lg md:text-[22px] text-[#00df81]"></i>
-                  </div>
-                  <input 
-                    className="text-lg md:text-2xl font-bold text-black bg-transparent border-none outline-none flex-1 placeholder-gray-300"
-                    value={hotelName}
-                    onChange={(e) => setHotelName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleStartConsultation()}
-                    placeholder="请输入酒店名称"
-                    autoFocus
-                  />
+              <div className="bg-white/95 rounded-[1.75rem] p-5 md:p-8 shadow-2xl border border-white mt-2">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
+                  <i className="fa-solid fa-hotel text-md text-[#00df81]"></i>
+                  <input className="text-md md:text-xl font-bold text-black bg-transparent border-none outline-none flex-1 placeholder-gray-300" value={hotelName} onChange={(e) => setHotelName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleStartConsultation()} placeholder="输入酒店名称..." autoFocus />
                 </div>
-                <div className="grid grid-cols-2 gap-4 md:gap-8">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[9px] md:text-[11px] text-gray-400 font-black uppercase tracking-[0.2em]">CHECK-IN / OUT</span>
-                    <input className="text-[13px] md:text-[16px] font-bold text-black bg-transparent outline-none w-full" value={dates} onChange={(e) => setDates(e.target.value)} />
-                  </div>
-                  <div className="flex flex-col gap-1 text-right border-l-2 border-gray-50 pl-4">
-                    <span className="text-[9px] md:text-[11px] text-gray-400 font-black uppercase tracking-[0.2em]">GUESTS</span>
-                    <input className="text-[13px] md:text-[16px] font-bold text-black bg-transparent outline-none w-full text-right" value={guests} onChange={(e) => setGuests(e.target.value)} />
-                  </div>
+                <div className="grid grid-cols-2 gap-4 cursor-pointer" onClick={() => setIsCalendarOpen(true)}>
+                  <div className="flex flex-col gap-0.5"><span className="text-[8px] text-gray-400 font-black uppercase">日期</span><div className="text-[12px] font-bold text-black">{getFormattedDatesDisplay()}</div></div>
+                  <div className="flex flex-col gap-0.5 text-right border-l border-gray-100 pl-4"><span className="text-[8px] text-gray-400 font-black uppercase">人数</span><div className="text-[12px] font-bold text-black">{guests}</div></div>
                 </div>
               </div>
-              <p className="text-white/30 text-[10px] md:text-[12px] font-black tracking-[0.2em] uppercase text-center mt-2 animate-shimmer">
-                ENTER TO EXPLORE YOUR NEXT DESTINATION
-              </p>
+              <p className="text-white/20 text-[9px] font-black tracking-widest uppercase text-center mt-2 animate-shimmer">回车开始您的非凡旅程</p>
             </div>
           </div>
         ) : (
-          <div ref={scrollRef} className="flex-1 space-y-6 md:space-y-8 py-6 md:py-10 no-scrollbar overflow-y-auto pb-48">
-            <div className="sticky top-0 z-20 py-2">
-               {isEditingHeader ? (
-                 <div className="bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 animate-fade-up">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center gap-3 border-b-2 border-gray-50 pb-3">
-                        <i className="fa-solid fa-location-dot text-[#00df81]"></i>
-                        <input className="text-lg font-bold text-black bg-transparent border-none outline-none flex-1" value={hotelName} onChange={(e) => setHotelName(e.target.value)} placeholder="修改酒店名称" autoFocus />
+          <div ref={scrollRef} className="flex-1 space-y-4 md:space-y-6 py-4 md:py-8 no-scrollbar overflow-y-auto relative">
+            <div className="sticky top-0 z-30 pb-2">
+               <button onClick={() => setIsEditingHeader(!isEditingHeader)} className="w-full bg-white/15 backdrop-blur-3xl border border-white/20 rounded-xl p-2.5 px-3.5 flex items-center justify-between shadow-xl transition-all">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <div className="w-6 h-6 rounded bg-[#00df81] flex items-center justify-center text-black shrink-0"><i className="fa-solid fa-location-dot text-[11px]"></i></div>
+                    <span className="text-[13px] font-black truncate text-white">{hotelName}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[10px] text-white/50 font-bold shrink-0"><span>{getFormattedDatesDisplay()}</span><i className="fa-solid fa-chevron-down text-[8px]"></i></div>
+               </button>
+               {isEditingHeader && (
+                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl p-4 shadow-2xl border border-gray-100 animate-fade-up z-50">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3 border-b border-gray-50 pb-2">
+                        <i className="fa-solid fa-location-dot text-[#00df81] text-sm"></i>
+                        <input className="text-sm font-bold text-black bg-transparent border-none outline-none flex-1" value={hotelName} onChange={(e) => setHotelName(e.target.value)} placeholder="修改酒店" autoFocus />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-gray-400 font-black uppercase">入住周期</span>
-                          <input className="text-[12px] font-bold text-black bg-transparent outline-none" value={dates} onChange={(e) => setDates(e.target.value)} />
-                        </div>
-                        <div className="flex flex-col text-right">
-                          <span className="text-[9px] text-gray-400 font-black uppercase">预订人数</span>
-                          <input className="text-[12px] font-bold text-black bg-transparent outline-none text-right" value={guests} onChange={(e) => setGuests(e.target.value)} />
-                        </div>
+                      <div className="grid grid-cols-2 gap-3" onClick={() => setIsCalendarOpen(true)}>
+                        <div className="flex flex-col"><span className="text-[8px] text-gray-400 font-bold">日期</span><div className="text-[11px] font-bold text-black">{getFormattedDatesDisplay()}</div></div>
+                        <div className="flex flex-col text-right"><span className="text-[8px] text-gray-400 font-bold">人数</span><div className="text-[11px] font-bold text-black">{guests}</div></div>
                       </div>
-                      <button onClick={() => setIsEditingHeader(false)} className="bg-black text-white font-bold py-3 rounded-xl shadow-lg">保存修改</button>
+                      <button onClick={() => setIsEditingHeader(false)} className="bg-black text-white font-bold py-2.5 rounded-xl text-xs">保存更新</button>
                     </div>
                  </div>
-               ) : (
-                 <button onClick={() => setIsEditingHeader(true)} className="w-full bg-white/10 backdrop-blur-3xl border border-white/20 rounded-2xl p-4 flex items-center justify-between shadow-2xl transition-all">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-8 h-8 rounded-lg bg-[#00df81] flex items-center justify-center text-black shrink-0">
-                        <i className="fa-solid fa-location-dot text-[14px]"></i>
-                      </div>
-                      <span className="text-[16px] font-bold truncate text-white">{hotelName}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[12px] text-white/60 font-bold shrink-0">
-                      <span>{guests}</span>
-                      <i className="fa-solid fa-pencil text-[10px]"></i>
-                    </div>
-                 </button>
                )}
             </div>
 
             {messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-up`}>
-                <div className={`max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block px-5 py-3.5 md:px-8 md:py-5 rounded-2xl md:rounded-[2.5rem] shadow-2xl text-[14px] md:text-[16px] leading-relaxed transition-all whitespace-pre-wrap ${
-                    msg.role === 'user' ? 'bg-[#00df81] text-black font-bold' : 'bg-white/10 backdrop-blur-2xl border border-white/10 text-white'
+                <div className={`max-w-[92%] md:max-w-[85%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`inline-block px-4 py-3 md:px-7 md:py-5 rounded-xl md:rounded-3xl shadow-xl text-[13px] md:text-[15px] transition-all text-left message-content ${
+                    msg.role === 'user' ? 'bg-[#12d65e] text-black font-bold' : 'bg-white/[0.08] backdrop-blur-3xl border border-white/10 text-white'
                   }`}>
-                    {msg.content}
+                    <div className="whitespace-pre-wrap">{msg.content.split('\n\n').map((para, i) => <p key={i} className="mb-3 last:mb-0 text-left">{para}</p>)}</div>
+                    {msg.type === 'comparison' && msg.comparisonData && <ComparisonTable data={msg.comparisonData} onBook={handleBook} />}
+                    {msg.type === 'room-tour' && msg.roomTourVideos && <VideoTourList videos={msg.roomTourVideos} onPlay={(v) => setSelectedVideo(v)} />}
+                    {msg.groundingChunks && msg.groundingChunks.length > 0 && (
+                      <div className="mt-4 pt-3 border-t border-white/10">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30 mb-2">参考来源</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.groundingChunks.map((chunk, idx) => chunk.web && (
+                            <a key={idx} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[9px] font-bold text-[#12d65e] flex items-center gap-1.5">
+                              <i className="fa-solid fa-link text-[8px]"></i>
+                              <span className="truncate max-w-[120px]">{chunk.web.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex justify-start animate-fade-up">
-                <div className="bg-white/10 backdrop-blur-xl px-4 py-3 rounded-2xl border border-white/10">
-                  <div className="flex gap-2 items-center">
-                    <div className="w-1.5 h-1.5 bg-[#00df81] rounded-full animate-bounce"></div>
-                    <div className="w-1.5 h-1.5 bg-[#00df81] rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                    <div className="w-1.5 h-1.5 bg-[#00df81] rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                <div className="bg-white/10 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/10">
+                  <div className="flex gap-1.5 items-center">
+                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce"></div>
+                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce [animation-delay:0.1s]"></div>
+                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce [animation-delay:0.2s]"></div>
                   </div>
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} className="h-[200px] w-full pointer-events-none shrink-0" />
           </div>
         )}
       </main>
 
       {isStarted && (
-        <div className="fixed bottom-0 z-30 w-full max-w-4xl px-4 md:px-6 pb-6 md:pb-10 pt-4 bg-gradient-to-t from-black via-black/90 to-transparent">
-          <div className="flex flex-col gap-4">
+        <div className="fixed bottom-0 z-40 w-full max-w-4xl px-3 md:px-6 pb-5 md:pb-8 pt-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent shrink-0">
+          <div className="flex flex-col gap-3">
             <div className="flex overflow-x-auto no-scrollbar gap-2 animate-fade-up snap-x">
               {quickActions.map((action, idx) => (
-                <button key={idx} onClick={() => handleSend(action.query)} className="flex items-center gap-2 bg-white/10 backdrop-blur-3xl text-white text-[12px] font-bold px-5 py-3 rounded-xl border border-white/10 whitespace-nowrap transition-all">
-                  <span className="text-[#00df81]">{action.icon}</span>
-                  <span>{action.label}</span>
+                <button key={idx} onClick={() => action.isSpecial ? handlePriceComparison() : (action.label === "Room Tour" ? handleRoomTour() : handleSend(action.query))} className="flex items-center gap-1.5 bg-white/10 backdrop-blur-3xl text-white text-[11px] font-bold px-4 py-2.5 rounded-xl border border-white/10 whitespace-nowrap hover:bg-white/20 transition-all">
+                  <span className="text-[#12d65e]">{action.icon}</span><span>{action.label}</span>
                 </button>
               ))}
             </div>
-            <div className="w-full flex items-center bg-white/15 backdrop-blur-[40px] rounded-[2.5rem] p-2 pl-6 gap-3 border border-white/20 transition-all focus-within:border-[#00df81]/50 shadow-2xl">
-              <input 
-                type="text" 
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="咨询您的奢华度假方案..." 
-                className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/30 py-3 text-[14px] md:text-[16px] font-medium"
-              />
-              <button 
-                onClick={() => handleSend()}
-                disabled={!inputValue.trim()}
-                className={`w-11 h-11 md:w-12 md:h-12 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                  inputValue.trim() ? 'bg-[#00df81] text-black shadow-[0_0_20px_rgba(0,223,129,0.4)]' : 'bg-white/5 text-white/10 scale-95 opacity-50'
-                }`}
-              >
-                <i className="fa-solid fa-arrow-up text-lg"></i>
-              </button>
+            <div className="w-full flex items-center bg-white/15 backdrop-blur-3xl rounded-full p-1.5 pl-5 gap-2.5 border border-white/20 transition-all focus-within:border-[#12d65e]/40 shadow-2xl">
+              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="咨询个性化方案..." className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/20 py-2.5 text-[14px] font-medium" />
+              <button onClick={() => handleSend()} disabled={!inputValue.trim()} className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${inputValue.trim() ? 'bg-[#12d65e] text-black shadow-lg' : 'bg-white/5 text-white/10 cursor-not-allowed'}`}><i className="fa-solid fa-arrow-up text-md"></i></button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Error Toast */}
-      {errorMessage && (
-        <div className="fixed inset-x-0 bottom-24 flex items-center justify-center pointer-events-none z-[100] px-6">
-          <div className="bg-[#f04438] text-white px-6 py-4 rounded-2xl shadow-2xl animate-fade-up font-bold text-[14px] flex items-center gap-3 pointer-events-auto border border-white/10">
-            <i className="fa-solid fa-circle-exclamation"></i>
-            {errorMessage}
+      <div className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isHistoryOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsHistoryOpen(false)} />
+      <aside className={`fixed top-0 left-0 bottom-0 z-[110] w-[80%] max-w-[320px] bg-[#f8f9fa] text-black transition-transform duration-500 shadow-2xl flex flex-col ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-5 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-lg overflow-hidden shadow-md"><Logo /></div><span className="text-lg font-black">WayPal.ai</span></div>
+            <button onClick={() => setIsHistoryOpen(false)} className="w-8 h-8 flex items-center justify-center text-gray-300"><i className="fa-solid fa-xmark text-lg"></i></button>
+          </div>
+          <button onClick={() => { setIsStarted(false); setMessages([]); setHotelName(''); setIsHistoryOpen(false); }} className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all font-bold text-sm">
+            <i className="fa-solid fa-plus text-[#12d65e]"></i>发起新咨询
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-1.5 no-scrollbar">
+          <p className="px-2 py-2 text-[9px] font-black text-gray-300 uppercase tracking-widest">最近咨询</p>
+          <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-gray-300">
+            <i className="fa-solid fa-clock-rotate-left text-2xl mb-3"></i>
+            <p className="text-[12px] font-medium">暂无历史记录</p>
+          </div>
+        </div>
+      </aside>
+
+      {(errorMessage || successMessage) && (
+        <div className="fixed inset-x-0 bottom-24 flex items-center justify-center pointer-events-none z-[120] px-6">
+          <div className={`px-5 py-3 rounded-xl shadow-2xl animate-fade-up font-bold text-[12px] flex items-center gap-2.5 pointer-events-auto border border-white/10 ${successMessage ? 'bg-[#12d65e] text-black' : 'bg-[#f04438] text-white'}`}>
+            <i className={`fa-solid ${successMessage ? 'fa-circle-check' : 'fa-circle-exclamation'}`}></i>
+            {errorMessage || successMessage}
           </div>
         </div>
       )}

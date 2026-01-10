@@ -7,11 +7,11 @@
     <title>WayPal AI - 奢华酒店订房助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', 'Noto Sans SC', sans-serif;
-        background-color: #0b0d0f;
+        background-color: #050607;
         margin: 0;
         padding: 0;
         overflow: hidden;
@@ -31,26 +31,26 @@
         scrollbar-width: none;
       }
       @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      @keyframes shimmer {
-        0% { opacity: 0.3; }
-        50% { opacity: 0.6; }
-        100% { opacity: 0.3; }
+      @keyframes agentPulse {
+        0% { box-shadow: 0 0 0 0 rgba(18, 214, 94, 0.4); }
+        70% { box-shadow: 0 0 0 8px rgba(18, 214, 94, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(18, 214, 94, 0); }
       }
       .animate-fade-up {
-        animation: fadeUp 0.4s ease-out forwards;
+        animation: fadeUp 0.35s ease-out forwards;
       }
-      .animate-shimmer {
-        animation: shimmer 2.5s infinite ease-in-out;
+      .agent-glow {
+        animation: agentPulse 2s infinite;
       }
       .message-content {
-        line-height: 1.65;
-        letter-spacing: -0.01em;
+        line-height: 1.55;
+        letter-spacing: -0.015em;
       }
       .message-content p {
-        margin-bottom: 0.85rem;
+        margin-bottom: 0.6rem;
       }
       .message-content p:last-child {
         margin-bottom: 0;
@@ -61,9 +61,10 @@
       input, button {
         font-family: inherit;
       }
-      /* Ensure sticky header doesn't blur everything too much */
-      .sticky-header-shadow {
-        box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
     </style>
     <script type="importmap">

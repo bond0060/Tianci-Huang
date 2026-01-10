@@ -3,14 +3,12 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Message, HotelSearchData, RoomTourVideo } from './types';
 import { generateHotelResponse } from './services/geminiService';
 
-// Helper to get local date string YYYY-MM-DD
 const getLocalDateString = (date: Date) => {
   const offset = date.getTimezoneOffset();
   const localDate = new Date(date.getTime() - (offset * 60 * 1000));
   return localDate.toISOString().split('T')[0];
 };
 
-// --- Video Modal Component ---
 interface VideoModalProps {
   video: RoomTourVideo;
   onClose: () => void;
@@ -36,51 +34,19 @@ const VideoPlayerModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
         <div className="absolute inset-0">
           <img src={video.coverUrl} className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${isPlaying ? 'scale-110' : 'scale-100'}`} alt="video background" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            {!isPlaying && (
-              <button onClick={() => setIsPlaying(true)} className="w-16 h-16 bg-[#12d65e] rounded-full flex items-center justify-center text-black text-xl shadow-2xl scale-110 transition-transform active:scale-95">
-                <i className="fa-solid fa-play ml-1"></i>
-              </button>
-            )}
-          </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-8 space-y-3">
-          <div className="flex items-end justify-between">
-            <div className="space-y-1">
-              <span className="text-[9px] font-black text-[#12d65e] uppercase tracking-widest">正在播放 Room Tour</span>
-              <h3 className="text-md md:text-2xl font-bold text-white max-w-xl leading-tight">{video.title}</h3>
-              <p className="text-[11px] text-white/60 font-medium">@{video.author} · {video.likes} 赞</p>
-            </div>
-            <div className="flex gap-4 items-center">
-              <button className="text-white/80 hover:text-white transition-colors"><i className="fa-solid fa-share-nodes text-lg"></i></button>
-              <button className="text-white/80 hover:text-white transition-colors"><i className="fa-solid fa-heart text-lg"></i></button>
-            </div>
-          </div>
-          <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
+        <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+          <h3 className="text-[12px] md:text-xl font-bold text-white leading-tight">{video.title}</h3>
+          <div className="relative w-full h-0.5 bg-white/20 rounded-full overflow-hidden">
             <div className="absolute top-0 left-0 h-full bg-[#12d65e] transition-all duration-75" style={{ width: `${progress}%` }} />
           </div>
-          <div className="flex items-center justify-between text-[10px] font-bold text-white/40">
-            <div className="flex items-center gap-6">
-              <button onClick={() => setIsPlaying(!isPlaying)} className="text-white hover:text-[#12d65e] transition-colors">
-                <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'} text-md`}></i>
-              </button>
-              <span>0:{(Math.floor(progress / 3)).toString().padStart(2, '0')} / 0:30</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <i className="fa-solid fa-volume-high"></i>
-              <i className="fa-solid fa-expand"></i>
-            </div>
-          </div>
         </div>
-        <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all">
-          <i className="fa-solid fa-xmark text-lg"></i>
-        </button>
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white"><i className="fa-solid fa-xmark text-sm"></i></button>
       </div>
     </div>
   );
 };
 
-// --- Custom Calendar Component ---
 interface CalendarProps {
   startDate: string;
   endDate: string;
@@ -93,120 +59,51 @@ const Calendar: React.FC<CalendarProps> = ({ startDate, endDate, onSelect, onClo
   const [tempStart, setTempStart] = useState<string | null>(startDate);
   const [tempEnd, setTempEnd] = useState<string | null>(endDate);
 
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-
   const monthData = useMemo(() => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
-    const days = daysInMonth(year, month);
-    const startOffset = firstDayOfMonth(year, month);
-    const prevMonthDays = daysInMonth(year, month - 1);
-    
+    const days = new Date(year, month + 1, 0).getDate();
+    const startOffset = new Date(year, month, 1).getDay();
+    const prevMonthDays = new Date(year, month, 0).getDate();
     const result = [];
-    for (let i = startOffset - 1; i >= 0; i--) {
-      result.push({ day: prevMonthDays - i, current: false, date: getLocalDateString(new Date(year, month - 1, prevMonthDays - i)) });
-    }
-    for (let i = 1; i <= days; i++) {
-      result.push({ day: i, current: true, date: getLocalDateString(new Date(year, month, i)) });
-    }
-    const remaining = 42 - result.length;
-    for (let i = 1; i <= remaining; i++) {
-      result.push({ day: i, current: false, date: getLocalDateString(new Date(year, month + 1, i)) });
-    }
+    for (let i = startOffset - 1; i >= 0; i--) { result.push({ day: prevMonthDays - i, current: false, date: getLocalDateString(new Date(year, month - 1, prevMonthDays - i)) }); }
+    for (let i = 1; i <= days; i++) { result.push({ day: i, current: true, date: getLocalDateString(new Date(year, month, i)) }); }
+    while (result.length < 42) { result.push({ day: result.length - days - startOffset + 1, current: false, date: getLocalDateString(new Date(year, month + 1, result.length - days - startOffset + 1)) }); }
     return result;
   }, [viewDate]);
 
-  const handleDateClick = (date: string) => {
-    if (!tempStart || (tempStart && tempEnd)) {
-      setTempStart(date);
-      setTempEnd(null);
-    } else {
-      if (new Date(date) < new Date(tempStart)) {
-        setTempStart(date);
-      } else {
-        setTempEnd(date);
-        onSelect(tempStart, date);
-      }
-    }
-  };
-
-  const isSelected = (date: string) => date === tempStart || date === tempEnd;
-  const isInRange = (date: string) => tempStart && tempEnd && new Date(date) > new Date(tempStart) && new Date(date) < new Date(tempEnd);
   const nights = tempStart && tempEnd ? Math.ceil((new Date(tempEnd).getTime() - new Date(tempStart).getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
-        <div className="p-5 bg-[#f8f9fa] border-b border-gray-100 flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">入住日期</span>
-            <div className={`text-md font-bold ${tempStart ? 'text-black' : 'text-gray-300'}`}>
-              {tempStart ? new Date(tempStart).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }) : '选择日期'}
-            </div>
-          </div>
-          <div className="text-gray-200 text-xl font-light">|</div>
-          <div className="text-center">
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{nights} 晚</span>
-          </div>
-          <div className="text-gray-200 text-xl font-light">|</div>
-          <div className="space-y-1 text-right">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">离店日期</span>
-            <div className={`text-md font-bold ${tempEnd ? 'text-black' : 'text-gray-300'}`}>
-              {tempEnd ? new Date(tempEnd).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' }) : '选择日期'}
-            </div>
-          </div>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-fade-up" onClick={e => e.stopPropagation()}>
+        <div className="p-3 bg-[#f8f9fa] border-b border-gray-100 flex items-center justify-between text-[11px]">
+          <div className="font-bold">{tempStart ? new Date(tempStart).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '入住日期'}</div>
+          <div className="text-blue-600 font-black">{nights} 晚</div>
+          <div className="font-bold">{tempEnd ? new Date(tempEnd).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '离店日期'}</div>
         </div>
-        <div className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-all">
-              <i className="fa-solid fa-chevron-left text-gray-400 text-sm"></i>
-            </button>
-            <span className="text-md font-black text-gray-900">{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</span>
-            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-all">
-              <i className="fa-solid fa-chevron-right text-gray-400 text-sm"></i>
-            </button>
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))} className="w-6 h-6"><i className="fa-solid fa-chevron-left text-gray-300 text-xs"></i></button>
+            <span className="text-[12px] font-black">{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</span>
+            <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))} className="w-6 h-6"><i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i></button>
           </div>
-          <div className="grid grid-cols-7 gap-y-0.5">
-            {['日', '一', '二', '三', '四', '五', '六'].map(day => (
-              <div key={day} className="text-center text-[10px] font-black text-gray-400 py-2">{day}</div>
-            ))}
+          <div className="grid grid-cols-7 text-center">
+            {['日', '一', '二', '三', '四', '五', '六'].map(d => (<div key={d} className="text-[8px] font-bold text-gray-300 py-1">{d}</div>))}
             {monthData.map((d, i) => {
-              const selected = isSelected(d.date);
-              const inRange = isInRange(d.date);
-              const isStart = d.date === tempStart;
-              const isEnd = d.date === tempEnd;
+              const selected = d.date === tempStart || d.date === tempEnd;
+              const inRange = tempStart && tempEnd && new Date(d.date) > new Date(tempStart) && new Date(d.date) < new Date(tempEnd);
               return (
-                <button
-                  key={i}
-                  disabled={!d.current}
-                  onClick={() => handleDateClick(d.date)}
-                  className={`relative h-10 flex items-center justify-center text-[13px] font-bold transition-all
-                    ${!d.current ? 'text-gray-200' : 'text-gray-700 hover:text-blue-600'}
-                    ${inRange ? 'bg-blue-50' : ''}
-                    ${isStart && tempEnd ? 'rounded-l-full bg-blue-50' : ''}
-                    ${isEnd ? 'rounded-r-full bg-blue-50' : ''}
-                  `}
-                >
-                  <div className={`w-8 h-8 flex items-center justify-center rounded-full transition-all relative z-10
-                    ${selected ? 'bg-blue-600 text-white shadow-md' : ''}
-                  `}>
-                    {d.day}
-                  </div>
+                <button key={i} disabled={!d.current} onClick={() => { if (!tempStart || (tempStart && tempEnd)) { setTempStart(d.date); setTempEnd(null); } else { if (new Date(d.date) < new Date(tempStart)) setTempStart(d.date); else { setTempEnd(d.date); onSelect(tempStart, d.date); } } }} className={`relative h-8 text-[10px] font-bold ${!d.current ? 'text-gray-200' : 'text-gray-700'} ${inRange ? 'bg-blue-50' : ''}`}>
+                  <div className={`w-6 h-6 mx-auto flex items-center justify-center rounded-full transition-all ${selected ? 'bg-blue-600 text-white' : ''}`}>{d.day}</div>
                 </button>
               );
             })}
           </div>
         </div>
-        <div className="p-5 bg-gray-50 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm">取消</button>
-          <button 
-            disabled={!tempEnd}
-            onClick={() => tempStart && tempEnd && (onSelect(tempStart, tempEnd), onClose())} 
-            className={`flex-1 py-3 rounded-xl font-bold shadow-lg transition-all text-sm ${tempEnd ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >
-            确认日期
-          </button>
+        <div className="p-3 bg-gray-50 flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 text-gray-400 font-bold text-[11px]">取消</button>
+          <button disabled={!tempEnd} onClick={() => tempStart && tempEnd && (onSelect(tempStart, tempEnd), onClose())} className={`flex-1 py-2 rounded-lg font-bold text-[11px] shadow-sm ${tempEnd ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>确认日期</button>
         </div>
       </div>
     </div>
@@ -227,29 +124,14 @@ const Logo = () => (
 
 const VideoTourList: React.FC<{ videos: RoomTourVideo[]; onPlay: (video: RoomTourVideo) => void }> = ({ videos, onPlay }) => {
   return (
-    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
       {videos.map((video) => (
-        <div 
-          key={video.id} 
-          onClick={() => onPlay(video)}
-          className="group relative flex flex-col bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:bg-white/10 transition-all hover:scale-[1.02] cursor-pointer"
-        >
-          <div className="aspect-[16/9] md:aspect-[3/4] overflow-hidden relative">
-            <img src={video.coverUrl} alt={video.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
-            <div className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-[#12d65e]">
-              <i className="fa-solid fa-heart mr-1"></i> {video.likes}
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="w-10 h-10 bg-[#12d65e] rounded-full flex items-center justify-center text-black">
-                <i className="fa-solid fa-play ml-0.5 text-sm"></i>
-              </div>
-            </div>
+        <div key={video.id} onClick={() => onPlay(video)} className="group bg-white/5 border border-white/10 rounded-lg overflow-hidden cursor-pointer transition-colors hover:bg-white/10">
+          <div className="aspect-[16/9] relative overflow-hidden">
+            <img src={video.coverUrl} alt={video.title} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i className="fa-solid fa-play text-[#12d65e] text-lg"></i></div>
           </div>
-          <div className="p-2.5 space-y-0.5">
-            <h4 className="text-[11px] font-bold text-white line-clamp-2 leading-snug">{video.title}</h4>
-            <p className="text-[9px] text-white/50 font-medium">@{video.author}</p>
-          </div>
+          <div className="p-1.5"><h4 className="text-[9.5px] font-bold text-white line-clamp-1">{video.title}</h4></div>
         </div>
       ))}
     </div>
@@ -258,61 +140,23 @@ const VideoTourList: React.FC<{ videos: RoomTourVideo[]; onPlay: (video: RoomTou
 
 const ComparisonTable: React.FC<{ data: any; onBook: (row: any) => void }> = ({ data, onBook }) => {
   const rows = data.table_rows || [];
-  const translateCancellation = (text: string) => {
-    if (!text) return '详情咨询';
-    if (text === 'Free Cancellation') return '免费取消';
-    if (text === 'Non-refundable') return '不可退款';
-    return text;
-  };
-
   return (
-    <div className="mt-3 w-full overflow-x-auto rounded-xl border border-white/10 bg-black/20 backdrop-blur-md scroll-smooth no-scrollbar">
-      <table className="w-full text-left text-[11px] md:text-[13px] min-w-[550px] md:min-w-full border-collapse">
-        <thead className="bg-white/5 text-white/40 uppercase font-black tracking-widest text-[9px]">
-          <tr>
-            <th className="px-3 py-3">预订平台</th>
-            <th className="px-3 py-3">单晚均价</th>
-            <th className="px-3 py-3">总计费用</th>
-            <th className="px-3 py-3">取消政策</th>
-            <th className="px-3 py-3 text-right">操作</th>
-          </tr>
+    <div className="mt-2 w-full overflow-x-auto rounded-lg border border-white/5 bg-black/40 no-scrollbar">
+      <table className="w-full text-left text-[9px] md:text-[11px] min-w-[420px] border-collapse">
+        <thead className="bg-white/5 text-white/20 uppercase font-black text-[7px] tracking-widest">
+          <tr><th className="px-2 py-1.5">平台</th><th className="px-2 py-1.5">均价</th><th className="px-2 py-1.5">总计</th><th className="px-2 py-1.5 text-right">预订</th></tr>
         </thead>
         <tbody className="divide-y divide-white/5">
           {rows.map((row: any, idx: number) => (
-            <tr key={idx} className="hover:bg-white/5 transition-colors group">
-              <td className="px-3 py-4 font-bold text-[#12d65e]">{row.platform}</td>
-              <td className="px-3 py-4 text-white font-medium">¥{row.before_tax_price?.toLocaleString()}</td>
-              <td className="px-3 py-4 font-black text-white">¥{row.total_price?.toLocaleString()}</td>
-              <td className="px-3 py-4">
-                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${row.cancellation_main === 'Free Cancellation' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                  {translateCancellation(row.cancellation_main)}
-                </span>
-              </td>
-              <td className="px-3 py-4 text-right">
-                <button 
-                  onClick={() => onBook(row)}
-                  className="bg-[#12d65e] text-black text-[10px] md:text-[11px] font-black px-3 py-1.5 rounded-full shadow-md shadow-[#12d65e]/20 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
-                >
-                  预订
-                </button>
-              </td>
+            <tr key={idx} className="hover:bg-white/5 transition-colors">
+              <td className="px-2 py-1.5 font-bold text-[#12d65e]">{row.platform}</td>
+              <td className="px-2 py-1.5">¥{row.before_tax_price?.toLocaleString()}</td>
+              <td className="px-2 py-1.5 font-black text-white">¥{row.total_price?.toLocaleString()}</td>
+              <td className="px-2 py-1.5 text-right"><button onClick={() => onBook(row)} className="bg-[#12d65e] text-black text-[8px] font-bold px-2 py-0.5 rounded-full hover:scale-105 transition-all">预订</button></td>
             </tr>
           ))}
         </tbody>
       </table>
-      {rows.length > 0 && rows[0].perks && (
-        <div className="p-3 bg-white/5 border-t border-white/5">
-          <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1.5">尊享礼遇包含</p>
-          <div className="flex flex-wrap gap-1.5">
-            {Object.entries(rows[0].perks).map(([key, value]: [string, any], i: number) => (
-              <span key={i} className="bg-[#12d65e]/10 text-[#12d65e] text-[10px] font-bold px-2 py-0.5 rounded-lg" title={String(value)}>
-                <i className="fa-solid fa-star text-[8px] mr-1"></i>
-                {key}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -324,54 +168,62 @@ const App: React.FC = () => {
   const [isStarted, setIsStarted] = useState(false);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<RoomTourVideo | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const [hotelName, setHotelName] = useState('');
   const [startDate, setStartDate] = useState(getLocalDateString(new Date()));
   const [endDate, setEndDate] = useState(getLocalDateString(new Date(Date.now() + 86400000)));
   const [guests, setGuests] = useState('2成人');
-  const [historyItems] = useState<string[]>([]);
 
   const bgUrl = "https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&q=80&w=1600";
 
-  const scrollToBottom = (smooth = true) => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
-    }
-  };
-
   const scrollToTop = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToLatestMessageTop = (messageId: string) => {
+    const el = messageRefs.current.get(messageId);
+    if (el && scrollRef.current) {
+      const container = scrollRef.current;
+      const elementTop = el.offsetTop;
+      const stickyHeaderHeight = 54;
+      container.scrollTo({
+        top: elementTop - stickyHeaderHeight - 8,
+        behavior: 'smooth'
+      });
     }
   };
 
-  // Reset scroll to top when consultation starts to show first message from its beginning
-  useEffect(() => {
-    if (isStarted && messages.length > 0) {
-      scrollToTop();
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
-  }, [isStarted]);
+  };
 
   useEffect(() => {
-    if (messages.length > 1 || isLoading) {
-      const timeout = setTimeout(() => scrollToBottom(), 150);
-      return () => clearTimeout(timeout);
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      if (messages.length === 1 && isStarted) {
+        setTimeout(scrollToTop, 50);
+      } else if (latestMessage.role === 'assistant') {
+        setTimeout(() => scrollToLatestMessageTop(latestMessage.id), 100);
+      } else {
+        setTimeout(scrollToBottom, 100);
+      }
     }
-  }, [messages, isLoading]);
+  }, [messages, isStarted]);
 
   useEffect(() => {
     if (errorMessage || successMessage) {
-      const timer = setTimeout(() => {
-        setErrorMessage(null);
-        setSuccessMessage(null);
-      }, 3500);
+      const timer = setTimeout(() => { setErrorMessage(null); setSuccessMessage(null); }, 3000);
       return () => clearTimeout(timer);
     }
   }, [errorMessage, successMessage]);
@@ -379,212 +231,149 @@ const App: React.FC = () => {
   const getFormattedDatesDisplay = () => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     const fmt = (d: Date) => `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
-    return `${fmt(start)} - ${fmt(end)} (${nights > 0 ? nights : 1}晚)`;
+    return `${fmt(start)} - ${fmt(end)} (${Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))}晚)`;
   };
 
-  const translateSummary = (text: string) => {
-    if (!text) return "";
-    if (text.includes("Result generated from cached offers")) return "根据系统缓存，为您匹配到当前最优参考方案。 ✅";
-    return text;
-  };
-
-  const handleBook = (row: any) => {
-    setSuccessMessage(`正在为您连接 ${row.platform} 专属通道... 礼遇已锁定。`);
-  };
-
-  const generateComparisonText = (json: any, queryName: string) => {
-    const { hotel_name, checkin_date, checkout_date, nights, summary_text } = json;
-    let result = "";
-    if (hotel_name && hotel_name !== queryName) {
-      result += `管家注意到您关注的是 **${queryName}**，但目前实时数据正在更新中。\n\n为了不耽误您的行程规划，我先展示了同级别的 **${hotel_name}** 作为参考。如有需要，我可以为您手动发起深度询价：\n\n`;
-    } else {
-      result += `已为您备妥 **${hotel_name}** 的全平台比价详情，供您审阅：\n\n`;
-    }
-    result += `📅 **入住周期**: ${checkin_date} 至 ${checkout_date} (${nights}晚)\n`;
-    result += `👥 **入住人数**: ${json.guests}人\n`;
-    if (summary_text) result += `\n📝 **管家提示**: ${translateSummary(summary_text)}`;
-    return result;
-  };
+  const handleBook = (row: any) => { setSuccessMessage(`正在为您连接 ${row.platform} 专属通道...`); };
 
   const handlePriceComparison = async () => {
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: "请帮我查询全平台的实时价格对比。", timestamp: Date.now() };
+    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', content: "请查询实时比价。", timestamp: Date.now() };
     setMessages(prev => [...prev, userMessage]);
-    const currentQueryName = hotelName;
-    const adultsMatch = guests.match(/(\d+)/);
-    const adults = adultsMatch ? parseInt(adultsMatch[1]) : 2;
-    const payload = {
-      user_id: "test_user_001",
-      params: { destination: currentQueryName.includes("上海") ? "上海" : "未知", hotel_name: currentQueryName, check_in: startDate, check_out: endDate, room_count: 1, adults, children: 0, additional_notes: "无其他要求" },
-      channel: "web"
-    };
     setIsLoading(true);
     try {
       const response = await fetch('https://waypal-agent-backend-266509309806.asia-east1.run.app/agent/compare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ user_id: "u1", params: { hotel_name: hotelName, check_in: startDate, check_out: endDate, adults: 2 }, channel: "web" })
       });
       const data = await response.json();
-      const aiMessage: Message = { id: (Date.now() + 1).toString(), role: 'assistant', type: 'comparison', content: generateComparisonText(data.reply_json, currentQueryName), comparisonData: data.reply_json, timestamp: Date.now() };
-      setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "管家繁忙，请重试或咨询其他问题。", timestamp: Date.now() }]);
-    } finally {
-      setIsLoading(false);
+      setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', type: 'comparison', content: `尊贵的宾客，已为您获取到 **${hotelName}** 的全网比价，详情如下：`, comparisonData: data.reply_json, timestamp: Date.now() }]);
+    } catch (e) { 
+      setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: "抱歉，由于网络波动，我未能实时获取到价格数据。请您稍后重试。", timestamp: Date.now() }]); 
+    } finally { 
+      setIsLoading(false); 
     }
   };
 
   const handleRoomTour = async () => {
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: `请查找 ${hotelName} 的 Room Tour 视频。`, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', content: `我想看 ${hotelName} 的 Room Tour。`, timestamp: Date.now() }]);
     setIsLoading(true);
     setTimeout(() => {
       const mockVideos: RoomTourVideo[] = [
-        { id: 'xhs-1', title: `顶级视野！${hotelName} 景观套房深度测评...`, author: '奢华酒店控Lisa', likes: '1.2k', coverUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=600', videoUrl: '' },
-        { id: 'xhs-2', title: `总统套房 Room Tour 全记录`, author: '酒店试睡员阿强', likes: '856', coverUrl: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&q=80&w=600', videoUrl: '' },
-        { id: 'xhs-3', title: `${hotelName} 必住理由：开箱最美下午茶`, author: 'Vicky在旅行', likes: '643', coverUrl: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=600', videoUrl: '' }
+        { id: '1', title: `${hotelName} 景观套房实地探访`, author: 'Lisa', likes: '1.2k', coverUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=400', videoUrl: '' },
+        { id: '2', title: `顶级总统套房极简测评`, author: '强哥', likes: '856', coverUrl: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=400', videoUrl: '' }
       ];
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', type: 'room-tour', content: `尊贵的宾客，已为您精选了 **${hotelName}** 最具人气的三段 Room Tour 视频预览：`, roomTourVideos: mockVideos, timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', type: 'room-tour', content: `尊贵的宾客，已为您筛选出关于 **${hotelName}** 的实地 Room Tour 内容：`, roomTourVideos: mockVideos, timestamp: Date.now() }]);
       setIsLoading(false);
     }, 1500);
   };
 
-  const handleStartConsultation = (initialQuery?: string, isComparison?: boolean) => {
-    if (!hotelName.trim()) {
-      setErrorMessage("请输入感兴趣的酒店名称");
-      return;
-    }
+  const handleStartConsultation = (query?: string) => {
+    if (!hotelName.trim()) { setErrorMessage("请输入感兴趣的酒店名称"); return; }
     setIsStarted(true);
     setIsEditingHeader(false);
     const welcomeMsg: Message = {
       id: 'welcome',
       role: 'assistant',
-      content: `尊贵的宾客，午安。我是您的 WayPal 奢华酒店私人管家。\n\n已锁定 **${hotelName}** 咨询通道：\n\n📅 **预计行程**: ${getFormattedDatesDisplay()}\n👥 **同行人数**: ${guests}\n\n您可以点击快捷指令获取比价、探索实景，或直接输入个性化需求。`,
+      content: `尊贵的宾客，午安。我是您的 WayPal 奢华酒店订房助手。\n\n已锁定 **${hotelName}** 信息流：\n📅 **行程**: ${getFormattedDatesDisplay()}\n👥 **人数**: ${guests}\n\n请告知您的特定咨询需求，或点击下方快捷功能。`,
       timestamp: Date.now()
     };
     setMessages([welcomeMsg]);
-    if (isComparison) handlePriceComparison();
-    else if (initialQuery) handleSend(initialQuery);
+    if (query) handleSend(query);
   };
 
   const handleSend = async (forcedQuery?: string) => {
-    const queryText = forcedQuery || inputValue;
-    if (!queryText.trim()) return;
-    if (queryText.includes("全平台比价")) { handlePriceComparison(); setInputValue(''); return; }
-    if (queryText.includes("Room Tour")) { handleRoomTour(); setInputValue(''); return; }
-    if (!isStarted) { handleStartConsultation(queryText); setInputValue(''); return; }
-
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: queryText, timestamp: Date.now(), hotelInfo: { hotelName, dates: getFormattedDatesDisplay(), guests } };
-    setMessages(prev => [...prev, userMessage]);
+    const text = forcedQuery || inputValue;
+    if (!text.trim()) return;
+    if (text.includes("全网比价")) { handlePriceComparison(); setInputValue(''); return; }
+    if (text.includes("Room Tour")) { handleRoomTour(); setInputValue(''); return; }
+    if (!isStarted) { handleStartConsultation(text); setInputValue(''); return; }
+    
+    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() }]);
     setInputValue('');
     setIsLoading(true);
     try {
-      const response = await generateHotelResponse(queryText, { hotelName, dates: getFormattedDatesDisplay(), guests });
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: response.text, groundingChunks: response.groundingChunks, timestamp: Date.now() }]);
-    } catch (error) { console.error(error); }
+      const res = await generateHotelResponse(text, { hotelName, dates: getFormattedDatesDisplay(), guests });
+      setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: res.text, groundingChunks: res.groundingChunks, timestamp: Date.now() }]);
+    } catch (e) { console.error(e); }
     finally { setIsLoading(false); }
   };
 
   const quickActions = [
-    { label: "全网比价", icon: <i className="fa-solid fa-magnifying-glass-dollar"></i>, isSpecial: true },
-    { label: "Room Tour", icon: <i className="fa-solid fa-video"></i>, query: "请查找该酒店的 Room Tour。" },
-    { label: "价格趋势", icon: <i className="fa-solid fa-chart-line"></i>, query: "请分析价格趋势。" }
+    { label: "全网比价", icon: <i className="fa-solid fa-magnifying-glass-dollar"></i> },
+    { label: "Room Tour", icon: <i className="fa-solid fa-video"></i> },
+    { label: "尊享礼遇", icon: <i className="fa-solid fa-gem"></i> }
   ];
 
   return (
-    <div className="relative h-[100dvh] w-full flex flex-col items-center overflow-hidden text-white bg-[#0b0d0f]">
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 scale-105" style={{ 
+    <div className="relative h-[100dvh] w-full flex flex-col items-center overflow-hidden text-white bg-[#050607]">
+      <div className="absolute inset-0 bg-cover bg-center transition-all duration-1000 scale-105" style={{ 
         backgroundImage: `url(${bgUrl})`, 
-        filter: isStarted ? 'blur(25px) brightness(0.3)' : 'blur(6px) brightness(0.6)' 
+        filter: isStarted ? 'blur(30px) brightness(0.2)' : 'blur(4px) brightness(0.5)' 
       }} />
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" />
+      <div className="absolute inset-0 bg-black/50" />
       
       {isCalendarOpen && <Calendar startDate={startDate} endDate={endDate} onSelect={(s, e) => { setStartDate(s); setEndDate(e); }} onClose={() => setIsCalendarOpen(false)} />}
       {selectedVideo && <VideoPlayerModal video={selectedVideo} onClose={() => setSelectedVideo(null)} />}
 
-      <header className="relative z-50 w-full max-w-7xl flex items-center justify-between px-4 md:px-8 py-4 md:py-10 shrink-0">
-        <button onClick={() => setIsHistoryOpen(true)} className="w-9 h-9 flex items-center justify-center text-white/80 hover:text-white rounded-xl transition-all"><i className="fa-solid fa-bars text-lg"></i></button>
-        <div className="absolute left-1/2 -translate-x-1/2 text-center"><span className="text-lg md:text-2xl font-black tracking-tighter text-white">WayPal<span className="text-[#00df81]">.ai</span></span></div>
-        <button onClick={() => setIsLoginOpen(true)} className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden border-[1.5px] border-white/20 transition-all"><Logo /></button>
+      <header className="relative z-50 w-full flex items-center justify-between px-4 py-3 shrink-0">
+        <button onClick={() => setIsHistoryOpen(true)} className="w-8 h-8 flex items-center justify-center text-white/40"><i className="fa-solid fa-bars-staggered text-md"></i></button>
+        <span className="text-[14px] font-black tracking-tighter uppercase opacity-80">WayPal<span className="text-[#00df81]">.ai</span></span>
+        <div className="w-6 h-6 rounded-full border border-white/10 overflow-hidden shadow-lg agent-glow"><Logo /></div>
       </header>
 
-      <main className="relative z-10 w-full max-w-4xl flex-1 flex flex-col px-3 md:px-10 overflow-hidden">
+      <main className="relative z-10 w-full max-w-xl flex-1 flex flex-col px-3 overflow-hidden">
         {!isStarted ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-4 animate-fade-up">
-            <h1 className="text-2xl md:text-5xl font-black leading-tight tracking-tighter text-white drop-shadow-2xl text-center mb-8">
-              午安，WayPal是<br/><span className="text-[#00df81]">奢华酒店私人管家</span>
+          <div className="flex-1 flex flex-col items-center justify-center animate-fade-up pb-12">
+            <h1 className="text-xl md:text-2xl font-black leading-tight tracking-tighter text-center mb-8 drop-shadow-2xl">
+              WayPal<br/><span className="text-[#00df81]">奢华酒店订房助手</span>
             </h1>
-            <div className="w-full max-w-lg space-y-4">
-              <div className="grid grid-cols-3 gap-2 w-full">
-                 {quickActions.map((action, idx) => (
-                   <button key={idx} onClick={() => action.isSpecial ? handleStartConsultation(undefined, true) : (action.label === "Room Tour" ? handleRoomTour() : handleSend(action.query))} className="flex flex-col items-center gap-1.5 bg-white/5 backdrop-blur-3xl border border-white/10 p-3.5 rounded-2xl hover:bg-white/10 transition-all group">
-                     <div className="w-9 h-9 rounded-xl bg-[#00df81]/10 flex items-center justify-center text-[#00df81] text-md group-hover:bg-[#00df81] group-hover:text-black transition-all">{action.icon}</div>
-                     <span className="text-[10px] md:text-[12px] font-bold text-white/90">{action.label}</span>
+            <div className="w-full max-w-xs space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                 {quickActions.map((a, i) => (
+                   <button key={i} onClick={() => handleStartConsultation(a.label)} className="flex flex-col items-center gap-1.5 bg-white/[0.03] backdrop-blur-3xl border border-white/5 p-3 rounded-xl hover:bg-white/[0.08] transition-all">
+                     <div className="w-8 h-8 rounded-lg bg-[#00df81]/10 flex items-center justify-center text-[#00df81] text-[11px]">{a.icon}</div>
+                     <span className="text-[9.5px] font-bold text-white/60 tracking-wide">{a.label}</span>
                    </button>
                  ))}
               </div>
-              <div className="bg-white/95 rounded-[1.75rem] p-5 md:p-8 shadow-2xl border border-white mt-2">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-4">
-                  <i className="fa-solid fa-hotel text-md text-[#00df81]"></i>
-                  <input className="text-md md:text-xl font-bold text-black bg-transparent border-none outline-none flex-1 placeholder-gray-300" value={hotelName} onChange={(e) => setHotelName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleStartConsultation()} placeholder="输入酒店名称..." autoFocus />
+              <div className="bg-white rounded-2xl p-4 shadow-2xl border border-white/40 mt-1">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-3 mb-3">
+                  <i className="fa-solid fa-magnifying-glass text-[12px] text-gray-300"></i>
+                  <input className="text-[13px] font-bold text-black bg-transparent border-none outline-none flex-1 placeholder-gray-200" value={hotelName} onChange={(e) => setHotelName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleStartConsultation()} placeholder="输入酒店名称..." autoFocus />
                 </div>
-                <div className="grid grid-cols-2 gap-4 cursor-pointer" onClick={() => setIsCalendarOpen(true)}>
-                  <div className="flex flex-col gap-0.5"><span className="text-[8px] text-gray-400 font-black uppercase">日期</span><div className="text-[12px] font-bold text-black">{getFormattedDatesDisplay()}</div></div>
-                  <div className="flex flex-col gap-0.5 text-right border-l border-gray-100 pl-4"><span className="text-[8px] text-gray-400 font-black uppercase">人数</span><div className="text-[12px] font-bold text-black">{guests}</div></div>
+                <div className="grid grid-cols-2 gap-3" onClick={() => setIsCalendarOpen(true)}>
+                  <div className="flex flex-col"><span className="text-[7.5px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">入住日期</span><div className="text-[10px] font-bold text-black">{getFormattedDatesDisplay()}</div></div>
+                  <div className="flex flex-col text-right border-l border-gray-50 pl-3"><span className="text-[7.5px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">入住人数</span><div className="text-[10px] font-bold text-black">{guests}</div></div>
                 </div>
               </div>
-              <p className="text-white/20 text-[9px] font-black tracking-widest uppercase text-center mt-2 animate-shimmer">回车开始您的非凡旅程</p>
             </div>
           </div>
         ) : (
-          <div ref={scrollRef} className="flex-1 space-y-4 md:space-y-6 py-4 md:py-8 no-scrollbar overflow-y-auto relative">
-            <div className="sticky top-0 z-30 pb-2">
-               <button onClick={() => setIsEditingHeader(!isEditingHeader)} className="w-full bg-white/15 backdrop-blur-3xl border border-white/20 rounded-xl p-2.5 px-3.5 flex items-center justify-between shadow-xl transition-all">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className="w-6 h-6 rounded bg-[#00df81] flex items-center justify-center text-black shrink-0"><i className="fa-solid fa-location-dot text-[11px]"></i></div>
-                    <span className="text-[13px] font-black truncate text-white">{hotelName}</span>
+          <div ref={scrollRef} className="flex-1 space-y-3.5 py-2 no-scrollbar overflow-y-auto relative">
+            <div className="sticky top-0 z-30">
+               <button onClick={() => setIsEditingHeader(!isEditingHeader)} className="w-full glass-panel rounded-xl p-2.5 flex items-center justify-between shadow-2xl">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <div className="w-4 h-4 rounded-full bg-[#00df81]/20 flex items-center justify-center shrink-0 border border-[#00df81]/30"><i className="fa-solid fa-location-dot text-[#00df81] text-[8px]"></i></div>
+                    <span className="text-[11px] font-bold truncate tracking-tight">{hotelName}</span>
                   </div>
-                  <div className="flex items-center gap-2.5 text-[10px] text-white/50 font-bold shrink-0"><span>{getFormattedDatesDisplay()}</span><i className="fa-solid fa-chevron-down text-[8px]"></i></div>
+                  <div className="flex items-center gap-2 text-[8.5px] text-white/30 font-bold shrink-0"><span>{getFormattedDatesDisplay()}</span><i className="fa-solid fa-chevron-down text-[6px]"></i></div>
                </button>
-               {isEditingHeader && (
-                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl p-4 shadow-2xl border border-gray-100 animate-fade-up z-50">
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-3 border-b border-gray-50 pb-2">
-                        <i className="fa-solid fa-location-dot text-[#00df81] text-sm"></i>
-                        <input className="text-sm font-bold text-black bg-transparent border-none outline-none flex-1" value={hotelName} onChange={(e) => setHotelName(e.target.value)} placeholder="修改酒店" autoFocus />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3" onClick={() => setIsCalendarOpen(true)}>
-                        <div className="flex flex-col"><span className="text-[8px] text-gray-400 font-bold">日期</span><div className="text-[11px] font-bold text-black">{getFormattedDatesDisplay()}</div></div>
-                        <div className="flex flex-col text-right"><span className="text-[8px] text-gray-400 font-bold">人数</span><div className="text-[11px] font-bold text-black">{guests}</div></div>
-                      </div>
-                      <button onClick={() => setIsEditingHeader(false)} className="bg-black text-white font-bold py-2.5 rounded-xl text-xs">保存更新</button>
-                    </div>
-                 </div>
-               )}
             </div>
 
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-up`}>
-                <div className={`max-w-[92%] md:max-w-[85%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block px-4 py-3 md:px-7 md:py-5 rounded-xl md:rounded-3xl shadow-xl text-[13px] md:text-[15px] transition-all text-left message-content ${
-                    msg.role === 'user' ? 'bg-[#12d65e] text-black font-bold' : 'bg-white/[0.08] backdrop-blur-3xl border border-white/10 text-white'
+              <div key={msg.id} ref={el => { if (el) messageRefs.current.set(msg.id, el); else messageRefs.current.delete(msg.id); }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-up`}>
+                <div className="max-w-[96%]">
+                  <div className={`inline-block px-3.5 py-2.5 rounded-2xl text-[11.5px] shadow-xl message-content border ${
+                    msg.role === 'user' ? 'bg-[#12d65e] text-black font-bold border-[#12d65e]/20' : 'bg-white/[0.04] backdrop-blur-2xl border-white/10 text-white/90'
                   }`}>
-                    <div className="whitespace-pre-wrap">{msg.content.split('\n\n').map((para, i) => <p key={i} className="mb-3 last:mb-0 text-left">{para}</p>)}</div>
-                    {msg.type === 'comparison' && msg.comparisonData && <ComparisonTable data={msg.comparisonData} onBook={handleBook} />}
-                    {msg.type === 'room-tour' && msg.roomTourVideos && <VideoTourList videos={msg.roomTourVideos} onPlay={(v) => setSelectedVideo(v)} />}
+                    <div className="whitespace-pre-wrap">{msg.content.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}</div>
+                    {msg.type === 'comparison' && <ComparisonTable data={msg.comparisonData} onBook={handleBook} />}
+                    {msg.type === 'room-tour' && <VideoTourList videos={msg.roomTourVideos || []} onPlay={setSelectedVideo} />}
                     {msg.groundingChunks && msg.groundingChunks.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-white/10">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30 mb-2">参考来源</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {msg.groundingChunks.map((chunk, idx) => chunk.web && (
-                            <a key={idx} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[9px] font-bold text-[#12d65e] flex items-center gap-1.5">
-                              <i className="fa-solid fa-link text-[8px]"></i>
-                              <span className="truncate max-w-[120px]">{chunk.web.title}</span>
-                            </a>
-                          ))}
-                        </div>
+                      <div className="mt-3 pt-2.5 border-t border-white/5 flex flex-wrap gap-1">
+                        {msg.groundingChunks.map((c, i) => c.web && (<a key={i} href={c.web.uri} target="_blank" className="bg-white/5 border border-white/5 px-2 py-0.5 rounded-full text-[7.5px] font-bold text-[#12d65e]/80 flex items-center gap-1.5"><i className="fa-solid fa-link text-[6px]"></i><span className="truncate max-w-[90px]">{c.web.title}</span></a>))}
                       </div>
                     )}
                   </div>
@@ -592,64 +381,33 @@ const App: React.FC = () => {
               </div>
             ))}
             {isLoading && (
-              <div className="flex justify-start animate-fade-up">
-                <div className="bg-white/10 backdrop-blur-xl px-3 py-2 rounded-xl border border-white/10">
-                  <div className="flex gap-1.5 items-center">
-                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce"></div>
-                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce [animation-delay:0.1s]"></div>
-                    <div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                  </div>
-                </div>
-              </div>
+              <div className="flex justify-start"><div className="bg-white/5 backdrop-blur-xl px-3 py-1.5 rounded-full border border-white/5 flex gap-1.5 items-center"><div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce"></div><div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce delay-75"></div><div className="w-1 h-1 bg-[#12d65e] rounded-full animate-bounce delay-150"></div><span className="text-[8px] font-bold text-white/20 uppercase ml-1">Agent Thinking</span></div></div>
             )}
-            <div ref={messagesEndRef} className="h-[200px] w-full pointer-events-none shrink-0" />
+            <div className="h-44 w-full pointer-events-none" />
           </div>
         )}
       </main>
 
       {isStarted && (
-        <div className="fixed bottom-0 z-40 w-full max-w-4xl px-3 md:px-6 pb-5 md:pb-8 pt-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent shrink-0">
-          <div className="flex flex-col gap-3">
-            <div className="flex overflow-x-auto no-scrollbar gap-2 animate-fade-up snap-x">
-              {quickActions.map((action, idx) => (
-                <button key={idx} onClick={() => action.isSpecial ? handlePriceComparison() : (action.label === "Room Tour" ? handleRoomTour() : handleSend(action.query))} className="flex items-center gap-1.5 bg-white/10 backdrop-blur-3xl text-white text-[11px] font-bold px-4 py-2.5 rounded-xl border border-white/10 whitespace-nowrap hover:bg-white/20 transition-all">
-                  <span className="text-[#12d65e]">{action.icon}</span><span>{action.label}</span>
-                </button>
+        <div className="fixed bottom-0 z-40 w-full max-w-xl px-3 pb-4 pt-5 bg-gradient-to-t from-black via-black/40 to-transparent">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex overflow-x-auto no-scrollbar gap-1.5 animate-fade-up">
+              {quickActions.map((a, i) => (
+                <button key={i} onClick={() => handleSend(a.label)} className="bg-white/[0.03] backdrop-blur-3xl text-white/70 text-[9.5px] font-bold px-3.5 py-2 rounded-lg border border-white/5 whitespace-nowrap active:bg-white/10 transition-colors"><span className="text-[#12d65e] mr-1.5 opacity-80">{a.icon}</span>{a.label}</button>
               ))}
             </div>
-            <div className="w-full flex items-center bg-white/15 backdrop-blur-3xl rounded-full p-1.5 pl-5 gap-2.5 border border-white/20 transition-all focus-within:border-[#12d65e]/40 shadow-2xl">
-              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="咨询个性化方案..." className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/20 py-2.5 text-[14px] font-medium" />
-              <button onClick={() => handleSend()} disabled={!inputValue.trim()} className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${inputValue.trim() ? 'bg-[#12d65e] text-black shadow-lg' : 'bg-white/5 text-white/10 cursor-not-allowed'}`}><i className="fa-solid fa-arrow-up text-md"></i></button>
+            <div className="w-full flex items-center bg-white/[0.08] backdrop-blur-3xl rounded-full p-1 pl-4.5 gap-2.5 border border-white/10 focus-within:border-[#12d65e]/30 transition-all shadow-2xl">
+              <input value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="咨询奢华房型或会员权益..." className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/20 py-2 text-[12.5px] font-medium" />
+              <button onClick={() => handleSend()} className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${inputValue.trim() ? 'bg-[#12d65e] text-black shadow-lg shadow-[#12d65e]/20' : 'bg-white/5 text-white/5'}`}><i className="fa-solid fa-arrow-up text-[11px]"></i></button>
             </div>
           </div>
         </div>
       )}
 
-      <div className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isHistoryOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsHistoryOpen(false)} />
-      <aside className={`fixed top-0 left-0 bottom-0 z-[110] w-[80%] max-w-[320px] bg-[#f8f9fa] text-black transition-transform duration-500 shadow-2xl flex flex-col ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-5 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-lg overflow-hidden shadow-md"><Logo /></div><span className="text-lg font-black">WayPal.ai</span></div>
-            <button onClick={() => setIsHistoryOpen(false)} className="w-8 h-8 flex items-center justify-center text-gray-300"><i className="fa-solid fa-xmark text-lg"></i></button>
-          </div>
-          <button onClick={() => { setIsStarted(false); setMessages([]); setHotelName(''); setIsHistoryOpen(false); }} className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all font-bold text-sm">
-            <i className="fa-solid fa-plus text-[#12d65e]"></i>发起新咨询
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-2 space-y-1.5 no-scrollbar">
-          <p className="px-2 py-2 text-[9px] font-black text-gray-300 uppercase tracking-widest">最近咨询</p>
-          <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-gray-300">
-            <i className="fa-solid fa-clock-rotate-left text-2xl mb-3"></i>
-            <p className="text-[12px] font-medium">暂无历史记录</p>
-          </div>
-        </div>
-      </aside>
-
       {(errorMessage || successMessage) && (
-        <div className="fixed inset-x-0 bottom-24 flex items-center justify-center pointer-events-none z-[120] px-6">
-          <div className={`px-5 py-3 rounded-xl shadow-2xl animate-fade-up font-bold text-[12px] flex items-center gap-2.5 pointer-events-auto border border-white/10 ${successMessage ? 'bg-[#12d65e] text-black' : 'bg-[#f04438] text-white'}`}>
-            <i className={`fa-solid ${successMessage ? 'fa-circle-check' : 'fa-circle-exclamation'}`}></i>
-            {errorMessage || successMessage}
+        <div className="fixed inset-x-0 bottom-20 flex items-center justify-center z-[120] px-6 pointer-events-none">
+          <div className={`px-4 py-2.5 rounded-full shadow-2xl animate-fade-up font-black text-[10px] uppercase tracking-wider flex items-center gap-2 border border-white/10 pointer-events-auto ${successMessage ? 'bg-[#12d65e] text-black' : 'bg-[#f04438] text-white'}`}>
+            <i className={`fa-solid ${successMessage ? 'fa-check' : 'fa-info'}`}></i>{errorMessage || successMessage}
           </div>
         </div>
       )}
